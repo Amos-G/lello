@@ -3,6 +3,9 @@
 !.env.example
 .toolchains/
 .build-cache/
+.flutter-sdk/
+.home/
+backend/node_modules/
 release/
 app/build/
 app/.dart_tool/

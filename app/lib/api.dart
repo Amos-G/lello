@@ -141,6 +141,22 @@ class Api {
   Future<void> deleteElemento(int id) =>
       _request('DELETE', '/api/elementi/$id');
 
+  Future<EtichetteReport> etichette() async => EtichetteReport.fromJson(
+        Map<String, dynamic>.from(await _request('GET', '/api/etichette')),
+      );
+  Future<EtichetteReport> renameDefaultLabel(String label) async =>
+      EtichetteReport.fromJson(
+        Map<String, dynamic>.from(
+          await _request('PATCH', '/api/etichette/default', {'label': label}),
+        ),
+      );
+  Future<EtichetteReport> deleteLabel(String label) async =>
+      EtichetteReport.fromJson(
+        Map<String, dynamic>.from(
+          await _request('DELETE', '/api/etichette', {'label': label}),
+        ),
+      );
+
   Future<List<Scenario>> scenari() async =>
       (await _request('GET', '/api/scenari') as List)
           .map((e) => Scenario.fromJson(e))
@@ -170,6 +186,16 @@ class Api {
 
   Future<void> detach(int scenarioId, int elementId) =>
       _request('DELETE', '/api/scenari/$scenarioId/elementi/$elementId');
+
+  Future<SpeseReport> spese() async => SpeseReport.fromJson(
+        Map<String, dynamic>.from(await _request('GET', '/api/spese')),
+      );
+  Future<void> addSpesa(String descrizione, int importoCents) =>
+      _request('POST', '/api/spese', {
+        'descrizione': descrizione,
+        'importo_cents': importoCents,
+      });
+  Future<void> deleteSpesa(int id) => _request('DELETE', '/api/spese/$id');
 
   Future<WebSocketChannel> socket() async {
     final wsBase = backendUrl.replaceFirst(RegExp(r'^http'), 'ws');

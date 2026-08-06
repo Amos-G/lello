@@ -12,4 +12,14 @@ void main() {
     expect(item.id, 42);
     expect(item.nome, 'Ghiaccio');
   });
+
+  test('include sempre l’etichetta predefinita nel report', () {
+    final report = EtichetteReport.fromJson({
+      'default_label': 'Da decidere',
+      'labels': ['Anna', 'Marco'],
+    });
+
+    expect(report.defaultLabel, 'Da decidere');
+    expect(report.labels, ['Da decidere', 'Anna', 'Marco']);
+  });
 }

@@ -150,6 +150,32 @@ const clean = (value, field, max = 255) => {
   }
   return value.trim();
 };
+const cleanPositiveCents = (value, field) => {
+  const cents = Number(value);
+  if (!Number.isInteger(cents) || cents <= 0 || cents > 100_000_000) {
+    const error = new Error(`${field} non valido`);
+    error.status = 400;
+    throw error;
+  }
+  return cents;
+};
+const getDefaultLabel = async (client = pool) => {
+  const { rows } = await client.query(
+    `SELECT valore FROM impostazioni_app
+     WHERE chiave='etichetta_chi_porta_default'`,
+  );
+  return rows[0]?.valore || "Da Assegnare";
+};
+const getLabelsReport = async (client = pool) => {
+  const defaultLabel = await getDefaultLabel(client);
+  const { rows } = await client.query(
+    "SELECT DISTINCT chi_porta FROM elementi ORDER BY chi_porta",
+  );
+  return {
+    default_label: defaultLabel,
+    labels: rows.map((row) => row.chi_porta),
+  };
+};
 const userToken = (user) =>
   jwt.sign(
     { sub: String(user.id), username: user.username, type: "access" },
@@ -436,7 +462,7 @@ app.post(
     const nome = clean(req.body.nome, "nome");
     const chi = req.body.chi_porta
       ? clean(req.body.chi_porta, "chi_porta", 120)
-      : "Da Assegnare";
+      : await getDefaultLabel();
     const { rows } = await pool.query(
       "INSERT INTO elementi(nome, chi_porta) VALUES($1,$2) RETURNING *",
       [nome, chi],
@@ -492,6 +518,201 @@ app.delete(
     if (!rows[0])
       return res.status(404).json({ error: "Elemento non trovato" });
     broadcast("elemento.deleted", rows[0]);
+    res.status(204).end();
+  }),
+);
+
+app.get(
+  "/api/etichette",
+  auth,
+  asyncRoute(async (_req, res) => {
+    res.json(await getLabelsReport());
+  }),
+);
+
+app.patch(
+  "/api/etichette/default",
+  auth,
+  asyncRoute(async (req, res) => {
+    const newLabel = clean(req.body.label, "label", 120);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const oldLabel = await getDefaultLabel(client);
+      if (oldLabel !== newLabel) {
+        await client.query(
+          "UPDATE elementi SET chi_porta=$1 WHERE chi_porta=$2",
+          [newLabel, oldLabel],
+        );
+        await client.query(
+          `INSERT INTO impostazioni_app(chiave, valore)
+           VALUES ('etichetta_chi_porta_default', $1)
+           ON CONFLICT (chiave) DO UPDATE SET valore=EXCLUDED.valore`,
+          [newLabel],
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    const report = await getLabelsReport();
+    broadcast("etichette.updated", report);
+    res.json(report);
+  }),
+);
+
+app.delete(
+  "/api/etichette",
+  auth,
+  asyncRoute(async (req, res) => {
+    const label = clean(req.body.label, "label", 120);
+    const client = await pool.connect();
+    let reassignedCount = 0;
+    try {
+      await client.query("BEGIN");
+      const defaultLabel = await getDefaultLabel(client);
+      if (label === defaultLabel) {
+        const error = new Error(
+          "L'etichetta predefinita può essere rinominata ma non rimossa",
+        );
+        error.status = 400;
+        throw error;
+      }
+      const result = await client.query(
+        "UPDATE elementi SET chi_porta=$1 WHERE chi_porta=$2",
+        [defaultLabel, label],
+      );
+      reassignedCount = result.rowCount;
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    const report = {
+      ...(await getLabelsReport()),
+      reassigned_count: reassignedCount,
+    };
+    broadcast("etichette.updated", report);
+    res.json(report);
+  }),
+);
+
+const buildExpenseSummary = (users, expenses) => {
+  if (!users.length) {
+    return { participants: [], settlements: [], total_cents: 0 };
+  }
+  const paidByUser = new Map(users.map((user) => [String(user.id), 0]));
+  let totalCents = 0;
+  for (const expense of expenses) {
+    const userId = String(expense.utente_id);
+    const amount = Number(expense.importo_cents);
+    paidByUser.set(userId, (paidByUser.get(userId) || 0) + amount);
+    totalCents += amount;
+  }
+  const baseShare = Math.floor(totalCents / users.length);
+  const remainder = totalCents % users.length;
+  const participants = users.map((user, index) => {
+    const paid = paidByUser.get(String(user.id)) || 0;
+    const quota = baseShare + (index < remainder ? 1 : 0);
+    return {
+      user_id: user.id,
+      username: user.username,
+      paid_cents: paid,
+      share_cents: quota,
+      balance_cents: paid - quota,
+    };
+  });
+  const creditors = participants
+    .filter((user) => user.balance_cents > 0)
+    .map((user) => ({ ...user, remaining_cents: user.balance_cents }))
+    .sort(
+      (a, b) =>
+        b.remaining_cents - a.remaining_cents ||
+        a.username.localeCompare(b.username),
+    );
+  const debtors = participants
+    .filter((user) => user.balance_cents < 0)
+    .map((user) => ({ ...user, remaining_cents: -user.balance_cents }))
+    .sort(
+      (a, b) =>
+        b.remaining_cents - a.remaining_cents ||
+        a.username.localeCompare(b.username),
+    );
+  const settlements = [];
+  let creditorIndex = 0;
+  for (const debtor of debtors) {
+    while (debtor.remaining_cents > 0 && creditorIndex < creditors.length) {
+      const creditor = creditors[creditorIndex];
+      const amount = Math.min(debtor.remaining_cents, creditor.remaining_cents);
+      settlements.push({
+        from_user_id: debtor.user_id,
+        from_username: debtor.username,
+        to_user_id: creditor.user_id,
+        to_username: creditor.username,
+        amount_cents: amount,
+      });
+      debtor.remaining_cents -= amount;
+      creditor.remaining_cents -= amount;
+      if (creditor.remaining_cents === 0) creditorIndex += 1;
+    }
+  }
+  return { participants, settlements, total_cents: totalCents };
+};
+
+app.get(
+  "/api/spese",
+  auth,
+  asyncRoute(async (_req, res) => {
+    const [usersResult, expensesResult] = await Promise.all([
+      pool.query("SELECT id, username FROM utenti ORDER BY id"),
+      pool.query(`
+        SELECT spese.*, utenti.username
+        FROM spese
+        JOIN utenti ON utenti.id=spese.utente_id
+        ORDER BY spese.created_at DESC, spese.id DESC`),
+    ]);
+    res.json({
+      spese: expensesResult.rows,
+      ...buildExpenseSummary(usersResult.rows, expensesResult.rows),
+    });
+  }),
+);
+
+app.post(
+  "/api/spese",
+  auth,
+  asyncRoute(async (req, res) => {
+    const descrizione = clean(req.body.descrizione, "descrizione");
+    const importoCents = cleanPositiveCents(
+      req.body.importo_cents,
+      "importo_cents",
+    );
+    const { rows } = await pool.query(
+      `INSERT INTO spese(utente_id, descrizione, importo_cents)
+       VALUES($1,$2,$3)
+       RETURNING *`,
+      [req.user.sub, descrizione, importoCents],
+    );
+    broadcast("spesa.created", rows[0]);
+    res.status(201).json(rows[0]);
+  }),
+);
+
+app.delete(
+  "/api/spese/:id",
+  auth,
+  asyncRoute(async (req, res) => {
+    const { rows } = await pool.query(
+      "DELETE FROM spese WHERE id=$1 RETURNING id",
+      [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Spesa non trovata" });
+    broadcast("spesa.deleted", rows[0]);
     res.status(204).end();
   }),
 );
@@ -582,13 +803,13 @@ app.post(
   auth,
   asyncRoute(async (req, res) => {
     const nome = clean(req.body.nome, "nome");
-    const chi = req.body.chi_porta
-      ? clean(req.body.chi_porta, "chi_porta", 120)
-      : "Da Assegnare";
     const client = await pool.connect();
     let item;
     try {
       await client.query("BEGIN");
+      const chi = req.body.chi_porta
+        ? clean(req.body.chi_porta, "chi_porta", 120)
+        : await getDefaultLabel(client);
       const { rows } = await client.query(
         "INSERT INTO elementi(nome, chi_porta) VALUES($1,$2) RETURNING *",
         [nome, chi],
