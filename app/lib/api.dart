@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+
 import 'models.dart';
 
 const backendUrl = 'https://partysync.amosgranata.it';
@@ -19,7 +21,13 @@ class Api {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
   static const requestTimeout = Duration(seconds: 15);
+
+  final http.Client client;
+  final void Function()? onUnauthorized;
   String? token;
+
+  Api({http.Client? client, this.onUnauthorized})
+      : client = client ?? http.Client();
 
   Uri _uri(String path) => Uri.parse('$backendUrl$path');
   Map<String, String> get _headers => {
@@ -29,27 +37,28 @@ class Api {
 
   Future<dynamic> _request(String method, String path, [Object? body]) async {
     final uri = _uri(path);
-    late http.Response response;
     final encoded = body == null ? null : jsonEncode(body);
+    late http.Response response;
     switch (method) {
       case 'GET':
         response =
-            await http.get(uri, headers: _headers).timeout(requestTimeout);
+            await client.get(uri, headers: _headers).timeout(requestTimeout);
       case 'POST':
-        response = await http
+        response = await client
             .post(uri, headers: _headers, body: encoded)
             .timeout(requestTimeout);
       case 'PATCH':
-        response = await http
+        response = await client
             .patch(uri, headers: _headers, body: encoded)
             .timeout(requestTimeout);
       case 'DELETE':
-        response = await http
+        response = await client
             .delete(uri, headers: _headers, body: encoded)
             .timeout(requestTimeout);
       default:
-        throw StateError('Metodo sconosciuto');
+        throw StateError('Metodo HTTP sconosciuto');
     }
+
     dynamic data;
     if (response.body.isNotEmpty) {
       try {
@@ -59,6 +68,10 @@ class Api {
       }
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401 && token != null) {
+        await logout();
+        onUnauthorized?.call();
+      }
       throw ApiException(
         (data is Map ? data['error'] : null) ??
             'Errore HTTP ${response.statusCode}',
@@ -71,25 +84,16 @@ class Api {
     return data;
   }
 
-  Future<bool> restoreSession() async {
+  Future<bool> restoreToken() async {
     token = await storage.read(key: 'jwt');
-    if (token == null) return false;
-    try {
-      await me();
-      return true;
-    } catch (_) {
-      await logout();
-      return false;
-    }
+    return token != null;
   }
 
   Future<Map<String, dynamic>> login(String username, String password) async =>
-      Map<String, dynamic>.from(
-        await _request('POST', '/api/auth/login', {
-          'username': username,
-          'password': password,
-        }),
-      );
+      Map<String, dynamic>.from(await _request('POST', '/api/auth/login', {
+        'username': username,
+        'password': password,
+      }));
 
   Future<void> acceptToken(String value) async {
     token = value;
@@ -97,11 +101,12 @@ class Api {
   }
 
   Future<void> verify2fa(String ticket, String code) async {
-    final data = await _request('POST', '/api/auth/verify-2fa', {
+    final data = Map<String, dynamic>.from(
+        await _request('POST', '/api/auth/verify-2fa', {
       'login_ticket': ticket,
       'code': code,
-    });
-    await acceptToken(data['token']);
+    }));
+    await acceptToken(data['token'] as String);
   }
 
   Future<void> logout() async {
@@ -109,99 +114,129 @@ class Api {
     await storage.delete(key: 'jwt');
   }
 
-  Future<Map<String, dynamic>> me() async =>
-      Map<String, dynamic>.from(await _request('GET', '/api/auth/me'));
+  Future<AppUser> me() async => AppUser.fromJson(
+      Map<String, dynamic>.from(await _request('GET', '/api/auth/me')));
+
   Future<Map<String, dynamic>> setup2fa() async => Map<String, dynamic>.from(
-        await _request('POST', '/api/auth/2fa/setup', {}),
-      );
+      await _request('POST', '/api/auth/2fa/setup', {}));
   Future<void> enable2fa(String code) =>
       _request('POST', '/api/auth/2fa/enable', {'code': code});
   Future<void> disable2fa(String password) =>
       _request('POST', '/api/auth/2fa/disable', {'password': password});
 
-  Future<List<Elemento>> elementi() async =>
-      (await _request('GET', '/api/elementi') as List)
-          .map((e) => Elemento.fromJson(e))
+  Future<List<PartyList>> lists() async =>
+      (await _request('GET', '/api/liste') as List)
+          .map((e) => PartyList.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
-  Future<Elemento> createElemento(String nome, String chiPorta) async =>
-      Elemento.fromJson(
-        Map<String, dynamic>.from(
-          await _request('POST', '/api/elementi', {
-            'nome': nome,
-            'chi_porta': chiPorta,
-          }),
-        ),
-      );
-  Future<void> addElemento(String nome, String chiPorta) async {
-    await createElemento(nome, chiPorta);
-  }
+  Future<void> createList(String nome) =>
+      _request('POST', '/api/liste', {'nome': nome});
+  Future<void> deleteList(String listId) =>
+      _request('DELETE', '/api/liste/$listId');
 
-  Future<void> patchElemento(int id, Map<String, dynamic> patch) =>
-      _request('PATCH', '/api/elementi/$id', patch);
-  Future<void> deleteElemento(int id) =>
-      _request('DELETE', '/api/elementi/$id');
-
-  Future<EtichetteReport> etichette() async => EtichetteReport.fromJson(
-        Map<String, dynamic>.from(await _request('GET', '/api/etichette')),
-      );
-  Future<EtichetteReport> renameDefaultLabel(String label) async =>
-      EtichetteReport.fromJson(
-        Map<String, dynamic>.from(
-          await _request('PATCH', '/api/etichette/default', {'label': label}),
-        ),
-      );
-  Future<EtichetteReport> deleteLabel(String label) async =>
-      EtichetteReport.fromJson(
-        Map<String, dynamic>.from(
-          await _request('DELETE', '/api/etichette', {'label': label}),
-        ),
-      );
-
-  Future<List<Scenario>> scenari() async =>
-      (await _request('GET', '/api/scenari') as List)
-          .map((e) => Scenario.fromJson(e))
+  Future<List<Participant>> participants(String listId) async =>
+      (await _request('GET', '/api/liste/$listId/partecipanti') as List)
+          .map((e) => Participant.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
-  Future<void> addScenario(String titolo) =>
-      _request('POST', '/api/scenari', {'titolo': titolo});
-  Future<void> deleteScenario(int id) => _request('DELETE', '/api/scenari/$id');
-  Future<void> attach(int scenarioId, int elementId) =>
-      _request('POST', '/api/scenari/$scenarioId/elementi/$elementId', {});
-  Future<void> createAndAttach(
-    int scenarioId,
-    String nome,
-    String chiPorta,
-  ) async {
-    final item = await createElemento(nome, chiPorta);
+  Future<List<Participant>> invitables(String listId) async =>
+      (await _request('GET', '/api/liste/$listId/invitabili') as List)
+          .map((e) => Participant.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+  Future<void> invite(String listId, String userId) =>
+      _request('POST', '/api/liste/$listId/inviti', {'utente_id': userId});
+
+  Future<List<Elemento>> elementi(String listId) async =>
+      (await _request('GET', '/api/liste/$listId/elementi') as List)
+          .map((e) => Elemento.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+  Future<Elemento> createElemento(
+          String listId, String nome, String? assigneeUserId) async =>
+      Elemento.fromJson(Map<String, dynamic>.from(
+          await _request('POST', '/api/liste/$listId/elementi', {
+        'nome': nome,
+        'chi_porta_utente_id': assigneeUserId,
+      })));
+  Future<void> patchElemento(
+          String listId, String id, Map<String, dynamic> patch) =>
+      _request('PATCH', '/api/liste/$listId/elementi/$id', patch);
+  Future<void> deleteElemento(String listId, String id) =>
+      _request('DELETE', '/api/liste/$listId/elementi/$id');
+  Future<EtichetteReport> etichette(String listId) async =>
+      EtichetteReport.fromJson(Map<String, dynamic>.from(
+          await _request('GET', '/api/liste/$listId/etichette')));
+
+  Future<List<Scenario>> scenari(String listId) async =>
+      (await _request('GET', '/api/liste/$listId/scenari') as List)
+          .map((e) => Scenario.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+  Future<void> addScenario(String listId, String title) =>
+      _request('POST', '/api/liste/$listId/scenari', {'titolo': title});
+  Future<void> renameScenario(String listId, String id, String title) =>
+      _request('PATCH', '/api/liste/$listId/scenari/$id', {'titolo': title});
+  Future<void> deleteScenario(String listId, String id) =>
+      _request('DELETE', '/api/liste/$listId/scenari/$id');
+  Future<void> attach(String listId, String scenarioId, String elementId) =>
+      _request('POST',
+          '/api/liste/$listId/scenari/$scenarioId/elementi/$elementId', {});
+  Future<void> detach(String listId, String scenarioId, String elementId) =>
+      _request('DELETE',
+          '/api/liste/$listId/scenari/$scenarioId/elementi/$elementId');
+  Future<void> createAndAttach(String listId, String scenarioId, String name,
+      String? assigneeUserId) async {
+    final item = await createElemento(listId, name, assigneeUserId);
     try {
-      await attach(scenarioId, item.id);
+      await attach(listId, scenarioId, item.id);
     } catch (_) {
       try {
-        await deleteElemento(item.id);
-      } catch (_) {
-        // Il rollback best-effort non deve nascondere l'errore di associazione.
-      }
+        await deleteElemento(listId, item.id);
+      } catch (_) {}
       rethrow;
     }
   }
 
-  Future<void> detach(int scenarioId, int elementId) =>
-      _request('DELETE', '/api/scenari/$scenarioId/elementi/$elementId');
-
-  Future<SpeseReport> spese() async => SpeseReport.fromJson(
-        Map<String, dynamic>.from(await _request('GET', '/api/spese')),
-      );
-  Future<void> addSpesa(String descrizione, int importoCents) =>
-      _request('POST', '/api/spese', {
-        'descrizione': descrizione,
-        'importo_cents': importoCents,
+  Future<SpeseReport> spese(String listId) async =>
+      SpeseReport.fromJson(Map<String, dynamic>.from(
+          await _request('GET', '/api/liste/$listId/spese')));
+  Future<void> addSpesa(String listId, String description, int amountCents,
+          List<String> participantIds) =>
+      _request('POST', '/api/liste/$listId/spese', {
+        'descrizione': description,
+        'importo_cents': amountCents,
+        'partecipante_ids': participantIds,
       });
-  Future<void> deleteSpesa(int id) => _request('DELETE', '/api/spese/$id');
+  Future<void> deleteSpesa(String listId, String id) =>
+      _request('DELETE', '/api/liste/$listId/spese/$id');
+  Future<void> addPayment(
+          String listId, String toUserId, int amountCents, String? note) =>
+      _request('POST', '/api/liste/$listId/pagamenti', {
+        'a_utente_id': toUserId,
+        'importo_cents': amountCents,
+        if (note != null && note.isNotEmpty) 'nota': note,
+      });
+  Future<void> deletePayment(String listId, String id) =>
+      _request('DELETE', '/api/liste/$listId/pagamenti/$id');
+
+  Future<List<AdminUser>> adminUsers() async =>
+      (await _request('GET', '/api/admin/utenti') as List)
+          .map((e) => AdminUser.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+  Future<void> createUser(String username, String password, String role) =>
+      _request('POST', '/api/admin/utenti',
+          {'username': username, 'password': password, 'ruolo': role});
+  Future<void> updateUser(String id, {String? role, String? password}) =>
+      _request('PATCH', '/api/admin/utenti/$id', {
+        if (role != null) 'ruolo': role,
+        if (password != null) 'password': password,
+      });
 
   Future<WebSocketChannel> socket() async {
-    final wsBase = backendUrl.replaceFirst(RegExp(r'^http'), 'ws');
-    final channel = WebSocketChannel.connect(Uri.parse('$wsBase/ws'));
+    final base = Uri.parse(backendUrl);
+    final uri = base.replace(
+      scheme: base.scheme == 'https' ? 'wss' : 'ws',
+      path: '/ws',
+      queryParameters: {'token': token!},
+    );
+    final channel = WebSocketChannel.connect(uri);
     await channel.ready.timeout(requestTimeout);
-    channel.sink.add(jsonEncode({'type': 'auth', 'token': token!}));
     return channel;
   }
 }

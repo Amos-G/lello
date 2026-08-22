@@ -56,21 +56,6 @@
 # they make Android builds reproducible on machines without a global Gradle.
 
 # -----------------------------------------------------------------------------
-# Node.js backend
-# -----------------------------------------------------------------------------
-**/node_modules/
-**/.npm/
-**/.yarn/
-**/.pnpm-store/
-**/.nyc_output/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Keep package-lock.json: it pins production dependencies.
-
-# -----------------------------------------------------------------------------
 # Local SDKs, caches and generated tooling state
 # -----------------------------------------------------------------------------
 /.config/
