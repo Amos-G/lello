@@ -100,11 +100,12 @@ class _ExpensesPageState extends State<ExpensesPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Stack(children: [
-        RefreshIndicator(
-          onRefresh: widget.reload,
-          child: ListView(
-              padding: const EdgeInsets.only(top: 8, bottom: 90),
+  Widget build(BuildContext context) => Column(children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: widget.reload,
+            child: ListView(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -124,10 +125,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                 width: 145,
                                 margin: const EdgeInsets.all(4),
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(color: line)),
+                                decoration: surfaceDecoration(radius: 18),
                                 child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -238,17 +236,21 @@ class _ExpensesPageState extends State<ExpensesPage> {
                             ),
                         ]),
                       ))),
-              ]),
+              ],
+            ),
+          ),
         ),
-        Positioned(
-            right: 18,
-            bottom: 18,
-            child: FloatingActionButton.extended(
+        ComposerSurface(
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
               key: const Key('add-expense'),
               onPressed: busy ? null : expenseDialog,
               icon: const Icon(Icons.add),
-              label: const Text('Spesa'),
-            )),
+              label: const Text('Aggiungi spesa'),
+            ),
+          ),
+        ),
       ]);
 
   Future<void> expenseDialog() async {

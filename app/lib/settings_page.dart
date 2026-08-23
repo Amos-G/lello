@@ -147,7 +147,11 @@ class _SettingsPageState extends State<SettingsPage> {
         _title('Partecipanti'),
         ...widget.participants.map((person) => SurfaceCard(
                 child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person)),
+              leading: const CircleAvatar(
+                backgroundColor: sageSoft,
+                foregroundColor: sage,
+                child: Icon(Icons.person),
+              ),
               title: Text(person.username),
               subtitle: Text(person.ruolo),
             ))),

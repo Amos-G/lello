@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:partysync/api.dart';
+import 'package:partysync/app_theme.dart';
 import 'package:partysync/expenses_page.dart';
 import 'package:partysync/models.dart';
 import 'package:partysync/settings_page.dart';
 
 void main() {
+  test('il tema mantiene la palette originale senza container azzurri', () {
+    final theme = buildAppTheme();
+    expect(theme.colorScheme.primary, sunset);
+    expect(theme.colorScheme.primaryContainer, sunsetSoft);
+    expect(theme.colorScheme.secondaryContainer, sageSoft);
+    expect(theme.floatingActionButtonTheme.backgroundColor, sunset);
+  });
+
   test('normalizza sempre gli ID PostgreSQL come String', () {
     final item = Elemento.fromJson({
       'id': 42,

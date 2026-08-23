@@ -50,82 +50,86 @@ class _ItemsPageState extends State<ItemsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Stack(children: [
-        RefreshIndicator(
-          onRefresh: widget.reload,
-          child: widget.items.isEmpty
-              ? ListView(children: const [
-                  SizedBox(
-                      height: 500,
-                      child: EmptyState(
-                          title: 'Nessun elemento',
-                          subtitle: 'Aggiungi ciò che serve alla festa.',
-                          icon: Icons.checklist_rounded))
-                ])
-              : ListView(
-                  padding: const EdgeInsets.only(top: 8, bottom: 90),
-                  children: widget.items
-                      .map((item) => SurfaceCard(
-                            child: ListTile(
-                              leading: Checkbox(
-                                value: item.completato,
-                                onChanged: busy
-                                    ? null
-                                    : (value) => mutate(widget.api
-                                        .patchElemento(widget.listId, item.id,
-                                            {'completato': value == true})),
-                              ),
-                              title: Text(item.nome,
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      decoration: item.completato
-                                          ? TextDecoration.lineThrough
-                                          : null)),
-                              subtitle: Text(item.chiPorta),
-                              onTap: busy
-                                  ? null
-                                  : () async {
-                                      final result = await itemDialog(
-                                          context, widget.labels.options,
-                                          item: item);
-                                      if (result != null) {
-                                        await mutate(widget.api.patchElemento(
-                                            widget.listId, item.id, {
-                                          'nome': result.$1,
-                                          'chi_porta_utente_id': result.$2
-                                        }));
-                                      }
-                                    },
-                              trailing: IconButton(
-                                tooltip: 'Elimina',
-                                color: danger,
-                                onPressed: busy
+  Widget build(BuildContext context) => Column(children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: widget.reload,
+            child: widget.items.isEmpty
+                ? ListView(children: const [
+                    SizedBox(
+                        height: 500,
+                        child: EmptyState(
+                            title: 'Nessun elemento',
+                            subtitle: 'Aggiungi ciò che serve alla festa.',
+                            icon: Icons.checklist_rounded))
+                  ])
+                : ListView(
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
+                    children: widget.items
+                        .map((item) => SurfaceCard(
+                              child: ListTile(
+                                leading: Checkbox(
+                                  value: item.completato,
+                                  onChanged: busy
+                                      ? null
+                                      : (value) => mutate(widget.api
+                                          .patchElemento(widget.listId, item.id,
+                                              {'completato': value == true})),
+                                ),
+                                title: Text(item.nome,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        decoration: item.completato
+                                            ? TextDecoration.lineThrough
+                                            : null)),
+                                subtitle: Text(item.chiPorta),
+                                onTap: busy
                                     ? null
                                     : () async {
-                                        if (await confirmDialog(
-                                            context,
-                                            'Eliminare l’elemento?',
-                                            'Sarà rimosso anche dai tuoi scenari privati.')) {
-                                          await mutate(widget.api
-                                              .deleteElemento(
-                                                  widget.listId, item.id));
+                                        final result = await itemDialog(
+                                            context, widget.labels.options,
+                                            item: item);
+                                        if (result != null) {
+                                          await mutate(widget.api.patchElemento(
+                                              widget.listId, item.id, {
+                                            'nome': result.$1,
+                                            'chi_porta_utente_id': result.$2
+                                          }));
                                         }
                                       },
-                                icon: const Icon(Icons.delete_outline),
+                                trailing: IconButton(
+                                  tooltip: 'Elimina',
+                                  color: danger,
+                                  onPressed: busy
+                                      ? null
+                                      : () async {
+                                          if (await confirmDialog(
+                                              context,
+                                              'Eliminare l’elemento?',
+                                              'Sarà rimosso anche dai tuoi scenari privati.')) {
+                                            await mutate(widget.api
+                                                .deleteElemento(
+                                                    widget.listId, item.id));
+                                          }
+                                        },
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
                               ),
-                            ),
-                          ))
-                      .toList(),
-                ),
+                            ))
+                        .toList(),
+                  ),
+          ),
         ),
-        Positioned(
-            right: 18,
-            bottom: 18,
-            child: FloatingActionButton.extended(
+        ComposerSurface(
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
               onPressed: busy ? null : addItem,
               icon: const Icon(Icons.add),
-              label: const Text('Elemento'),
-            )),
+              label: const Text('Aggiungi elemento'),
+            ),
+          ),
+        ),
       ]);
 }
 
@@ -325,36 +329,30 @@ class _ScenariosPageState extends State<ScenariosPage> {
                               .toList()),
                 )),
       if (current != null)
-        SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                Expanded(
-                    child: OutlinedButton.icon(
-                        onPressed: busy ? null : () => _attach(current),
-                        icon: const Icon(Icons.link),
-                        label: const Text('Associa'))),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: FilledButton.icon(
-                        onPressed: busy
-                            ? null
-                            : () async {
-                                final item = await itemDialog(
-                                    context, widget.labels.options);
-                                if (item != null) {
-                                  await mutate(widget.api.createAndAttach(
-                                      widget.listId,
-                                      current.id,
-                                      item.$1,
-                                      item.$2));
-                                }
-                              },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Crea e associa'))),
-              ]),
-            )),
+        ComposerSurface(
+          child: Row(children: [
+            Expanded(
+                child: OutlinedButton.icon(
+                    onPressed: busy ? null : () => _attach(current),
+                    icon: const Icon(Icons.link),
+                    label: const Text('Associa'))),
+            const SizedBox(width: 8),
+            Expanded(
+                child: FilledButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            final item = await itemDialog(
+                                context, widget.labels.options);
+                            if (item != null) {
+                              await mutate(widget.api.createAndAttach(
+                                  widget.listId, current.id, item.$1, item.$2));
+                            }
+                          },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Crea e associa'))),
+          ]),
+        ),
     ]);
   }
 
@@ -533,20 +531,19 @@ class _PrivateListPageState extends State<PrivateListPage> {
                         },
                       ))),
                 ])),
-      SafeArea(
-          top: false,
-          child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                Expanded(
-                    child: TextField(
-                        controller: controller,
-                        decoration: const InputDecoration(
-                            labelText: 'Nuovo item privato'),
-                        onSubmitted: (_) => addLocal())),
-                IconButton.filled(
-                    onPressed: addLocal, icon: const Icon(Icons.add)),
-              ]))),
+      ComposerSurface(
+          child: Row(children: [
+        Expanded(
+            child: TextField(
+                controller: controller,
+                decoration:
+                    const InputDecoration(labelText: 'Nuovo item privato'),
+                onSubmitted: (_) => addLocal())),
+        IconButton.filled(
+            style: addIconButtonStyle(),
+            onPressed: addLocal,
+            icon: const Icon(Icons.add)),
+      ])),
     ]);
   }
 

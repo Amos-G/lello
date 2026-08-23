@@ -45,6 +45,20 @@ class _PartySyncAppState extends State<PartySyncApp> {
         debugShowCheckedModeBanner: false,
         title: 'Lello',
         theme: buildAppTheme(),
+        builder: (context, child) => ColoredBox(
+          color: const Color(0xFFD8D4CC),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 430),
+              decoration: const BoxDecoration(
+                boxShadow: [
+                  BoxShadow(color: Color(0x2916231F), blurRadius: 60),
+                ],
+              ),
+              child: child,
+            ),
+          ),
+        ),
         home: loading
             ? const Scaffold(body: Center(child: CircularProgressIndicator()))
             : authenticated
@@ -108,59 +122,85 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: Center(
+        body: SafeArea(
+          child: Center(
             child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Card(
-                      elevation: 0,
-                      color: Colors.white,
-                      child: Padding(
-                          padding: const EdgeInsets.all(28),
-                          child:
-                              Column(mainAxisSize: MainAxisSize.min, children: [
-                            Image.asset('assets/brand/logo_lello.png',
-                                height: 100),
-                            const SizedBox(height: 24),
-                            if (ticket == null) ...[
-                              TextField(
-                                  controller: username,
-                                  autofocus: true,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Username')),
-                              const SizedBox(height: 14),
-                              TextField(
-                                  controller: password,
-                                  obscureText: true,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Password'),
-                                  onSubmitted: (_) => submit()),
-                            ] else
-                              TextField(
-                                  controller: otp,
-                                  autofocus: true,
-                                  keyboardType: TextInputType.number,
-                                  maxLength: 6,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Codice 2FA'),
-                                  onSubmitted: (_) => submit()),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  onPressed: busy ? null : submit,
-                                  icon: busy
-                                      ? const SizedBox.square(
-                                          dimension: 18,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2))
-                                      : const Icon(Icons.login),
-                                  label: Text(
-                                      ticket == null ? 'Accedi' : 'Verifica'),
-                                )),
-                          ]))),
-                ))),
+              padding: const EdgeInsets.all(28),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 92,
+                      height: 92,
+                      decoration: surfaceDecoration(radius: 24),
+                      clipBehavior: Clip.antiAlias,
+                      child: Image.asset(
+                        'assets/launcher/app_icon.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Lello',
+                      style:
+                          Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 34,
+                              ),
+                    ),
+                    const SizedBox(height: 32),
+                    if (ticket == null) ...[
+                      TextField(
+                        controller: username,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        decoration:
+                            const InputDecoration(labelText: 'Username'),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: password,
+                        obscureText: true,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        decoration:
+                            const InputDecoration(labelText: 'Password'),
+                        onSubmitted: (_) => submit(),
+                      ),
+                    ] else ...[
+                      const Text(
+                        'Inserisci il codice a 6 cifre dell’app Authenticator.',
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: otp,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        autofocus: true,
+                        decoration:
+                            const InputDecoration(labelText: 'Codice OTP'),
+                        onSubmitted: (_) => submit(),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: busy ? null : submit,
+                      icon: busy
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.login),
+                      label: Text(ticket == null ? 'Accedi' : 'Verifica'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       );
 }
 
@@ -472,26 +512,53 @@ class _HomeShellState extends State<HomeShell> {
       body: contentLoading
           ? const Center(child: CircularProgressIndicator())
           : IndexedStack(index: tab, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: (value) => setState(() => tab = value),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.checklist), label: 'Lista'),
-          NavigationDestination(icon: Icon(Icons.landscape), label: 'Scenari'),
-          NavigationDestination(
-              icon: Icon(Icons.account_balance_wallet), label: 'Spese'),
-          NavigationDestination(icon: Icon(Icons.lock), label: 'Privata'),
-          NavigationDestination(
-              icon: Icon(Icons.settings), label: 'Impostazioni'),
-        ],
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x2930281E),
+              blurRadius: 40,
+              offset: Offset(0, 14),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: NavigationBar(
+          selectedIndex: tab,
+          onDestinationSelected: (value) => setState(() => tab = value),
+          destinations: const [
+            NavigationDestination(
+                icon: Icon(Icons.checklist_rounded), label: 'Lista'),
+            NavigationDestination(
+                icon: Icon(Icons.landscape_rounded), label: 'Scenari'),
+            NavigationDestination(
+                icon: Icon(Icons.account_balance_wallet_rounded),
+                label: 'Spese'),
+            NavigationDestination(
+                icon: Icon(Icons.lock_rounded), label: 'Privata'),
+            NavigationDestination(
+                icon: Icon(Icons.settings_rounded), label: 'Impostazioni'),
+          ],
+        ),
       ),
     );
   }
 
   AppBar appBar() => AppBar(
         title: Row(children: [
-          Image.asset('assets/brand/logo_lello.png',
-              height: 48, width: 105, fit: BoxFit.contain),
+          SizedBox(
+            width: 150,
+            height: 70,
+            child: Image.asset(
+              'assets/brand/logo_lello.png',
+              fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
+              semanticLabel: 'Lello',
+            ),
+          ),
           if (selectedList != null)
             Expanded(
                 child: Text(selectedList!.nome,
