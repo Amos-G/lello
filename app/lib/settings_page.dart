@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'api.dart';
 import 'app_theme.dart';
@@ -415,54 +416,69 @@ class _SettingsPageState extends State<SettingsPage> {
               Text('Invito Registrazione'),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Condividi questo codice con l’utente da invitare. L’utente potrà registrarsi ma non potrà invitare altri finché non lo approvi.',
-                style: TextStyle(fontSize: 13, color: muted),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: sand2,
-                  borderRadius: BorderRadius.circular(10),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Condividi questo codice con l’utente da invitare. L’utente potrà registrarsi ma non potrà invitare altri finché non lo approvi.',
+                  style: TextStyle(fontSize: 13, color: muted),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SelectableText(
-                        code.isNotEmpty ? code : link,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: sand2,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SelectableText(
+                          code.isNotEmpty ? code : link,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy, size: 20),
-                      tooltip: 'Copia',
-                      onPressed: () {
-                        Clipboard.setData(
-                          ClipboardData(text: code.isNotEmpty ? code : link),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Codice copiato negli appunti'),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 20),
+                        tooltip: 'Copia',
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(text: code.isNotEmpty ? code : link),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Codice copiato negli appunti'),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () {
+                    final shareText = 'Ti invito su Lello! 🎉\n\n'
+                        '1. Scarica l’app per Android o accedi dal browser:\n'
+                        'https://partysync.amosgranata.it\n\n'
+                        '2. Registrati con il tuo codice invito esclusivo:\n'
+                        '$code';
+                    Share.share(shareText);
+                  },
+                  icon: const Icon(Icons.share, size: 18),
+                  label: const Text('Condividi con APK / Link'),
+                ),
+              ],
+            ),
           ),
           actions: [
-            FilledButton(
+            TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Chiudi'),
             ),
@@ -533,11 +549,14 @@ class InviteTile extends StatelessWidget {
       );
 }
 
-class AdminSection extends StatelessWidget {
+enum AdminFilter { all, guide, follower, canInvite, totp }
+
+class AdminSection extends StatefulWidget {
   final List<AdminUser>? users;
   final bool busy;
   final VoidCallback onCreate;
   final ValueChanged<AdminUser> onEdit;
+
   const AdminSection({
     super.key,
     required this.users,
@@ -547,35 +566,310 @@ class AdminSection extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Column(
-        key: const Key('admin-section'),
-        children: [
-          if (users == null) const CircularProgressIndicator(),
-          ...?users?.map(
-            (user) => SurfaceCard(
-              child: ListTile(
-                title: Text(user.username),
-                subtitle: Text(
-                  '${user.ruolo}${user.canInviteUsers ? ' · Può invitare' : ''}${user.totpEnabled ? ' · 2FA' : ''}',
-                ),
-                trailing: IconButton(
-                  onPressed: busy ? null : () => onEdit(user),
-                  icon: const Icon(Icons.edit_outlined),
-                ),
+  State<AdminSection> createState() => _AdminSectionState();
+}
+
+class _AdminSectionState extends State<AdminSection> {
+  final searchController = TextEditingController();
+  AdminFilter filter = AdminFilter.all;
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _statBadge(String label, Color fg, Color bg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: fg,
+          ),
+        ),
+      );
+
+  Widget _filterChip(String label, AdminFilter target) {
+    final active = filter == target;
+    return ChoiceChip(
+      label: Text(label),
+      selected: active,
+      selectedColor: lagoon,
+      backgroundColor: sand0,
+      labelStyle: TextStyle(
+        color: active ? Colors.white : ink,
+        fontWeight: active ? FontWeight.bold : FontWeight.normal,
+        fontSize: 12,
+      ),
+      side: BorderSide(color: active ? lagoon : line),
+      onSelected: (_) => setState(() => filter = target),
+    );
+  }
+
+  Widget _userCard(AdminUser user) {
+    final isSuper = user.ruolo == 'superadmin';
+    final isGuida = user.ruolo == 'guida';
+    final avatarColor = isSuper
+        ? sunset
+        : isGuida
+            ? lagoon
+            : sage;
+    final avatarBg = isSuper
+        ? sunsetSoft
+        : isGuida
+            ? lagoonSoft
+            : sageSoft;
+    final avatarIcon = isSuper
+        ? Icons.shield
+        : isGuida
+            ? Icons.explore
+            : Icons.person;
+
+    return SurfaceCard(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: avatarBg,
+          foregroundColor: avatarColor,
+          child: Icon(avatarIcon, size: 20),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                user.username,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (user.totpEnabled)
+              const Tooltip(
+                message: '2FA Attivo',
+                child: Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(Icons.verified_user, size: 16, color: gold),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSuper
+                      ? sunsetSoft
+                      : isGuida
+                          ? lagoonSoft
+                          : sageSoft,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  user.ruolo.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isSuper
+                        ? sunset
+                        : isGuida
+                            ? lagoon
+                            : ink,
+                  ),
+                ),
+              ),
+              if (isGuida)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: user.canInviteUsers ? sageSoft : sand2,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        user.canInviteUsers ? Icons.check : Icons.lock_outline,
+                        size: 11,
+                        color: user.canInviteUsers ? sage : muted,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        user.canInviteUsers ? 'Può invitare' : 'No inviti',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: user.canInviteUsers ? ink : muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: FilledButton.icon(
-              key: const Key('create-user'),
-              onPressed: busy ? null : onCreate,
-              icon: const Icon(Icons.person_add),
-              label: const Text('Crea utente'),
+        ),
+        trailing: IconButton(
+          onPressed: widget.busy ? null : () => widget.onEdit(user),
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: 'Modifica utente',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.users == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final query = searchController.text.trim().toLowerCase();
+    final users = widget.users!;
+
+    final guideCount = users.where((u) => u.ruolo == 'guida').length;
+    final guideCanInviteCount =
+        users.where((u) => u.ruolo == 'guida' && u.canInviteUsers).length;
+    final followerCount = users.where((u) => u.ruolo == 'follower').length;
+    final totpCount = users.where((u) => u.totpEnabled).length;
+
+    final filtered = users.where((u) {
+      if (query.isNotEmpty && !u.username.toLowerCase().contains(query)) {
+        return false;
+      }
+      switch (filter) {
+        case AdminFilter.all:
+          return true;
+        case AdminFilter.guide:
+          return u.ruolo == 'guida';
+        case AdminFilter.follower:
+          return u.ruolo == 'follower';
+        case AdminFilter.canInvite:
+          return u.canInviteUsers || u.username == 'amos';
+        case AdminFilter.totp:
+          return u.totpEnabled;
+      }
+    }).toList();
+
+    return Column(
+      key: const Key('admin-section'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SurfaceCard(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Pannello Utenti (${users.length})',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: ink,
+                      ),
+                    ),
+                    FilledButton.icon(
+                      key: const Key('create-user'),
+                      onPressed: widget.busy ? null : widget.onCreate,
+                      icon: const Icon(Icons.person_add, size: 18),
+                      label: const Text('Nuovo'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _statBadge(
+                      'Guide: $guideCount ($guideCanInviteCount attive)',
+                      lagoon,
+                      lagoonSoft,
+                    ),
+                    _statBadge('Follower: $followerCount', sage, sageSoft),
+                    _statBadge('2FA: $totpCount', gold, sand2),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      );
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: TextField(
+            controller: searchController,
+            decoration: InputDecoration(
+              hintText: 'Cerca per username…',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () => setState(() => searchController.clear()),
+                    )
+                  : null,
+              isDense: true,
+              filled: true,
+              fillColor: sand0,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: [
+              _filterChip('Tutti (${users.length})', AdminFilter.all),
+              const SizedBox(width: 6),
+              _filterChip('Guide ($guideCount)', AdminFilter.guide),
+              const SizedBox(width: 6),
+              _filterChip('Follower ($followerCount)', AdminFilter.follower),
+              const SizedBox(width: 6),
+              _filterChip('Può invitare', AdminFilter.canInvite),
+              const SizedBox(width: 6),
+              _filterChip('2FA ($totpCount)', AdminFilter.totp),
+            ],
+          ),
+        ),
+        if (filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                'Nessun utente corrisponde ai filtri impostati',
+                style: TextStyle(color: muted, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...filtered.map((user) => _userCard(user)),
+      ],
+    );
+  }
 }
 
 Future<(String, String?, String, bool)?> userDialog(
