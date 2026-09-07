@@ -15,7 +15,7 @@ class SettingsPage extends StatefulWidget {
   final Api api;
   final AppUser user;
   final List<PartyList> lists;
-  final PartyList selectedList;
+  final PartyList? selectedList;
   final List<Participant> participants;
   final Future<void> Function(String) selectList;
   final Future<void> Function() refreshLists;
@@ -27,7 +27,7 @@ class SettingsPage extends StatefulWidget {
     required this.api,
     required this.user,
     required this.lists,
-    required this.selectedList,
+    this.selectedList,
     required this.participants,
     required this.selectList,
     required this.refreshLists,
@@ -53,7 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void didUpdateWidget(covariant SettingsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedList.id != widget.selectedList.id) {
+    if (oldWidget.selectedList?.id != widget.selectedList?.id) {
       invitables = null;
       loadRestricted();
     }
@@ -61,8 +61,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> loadRestricted() async {
     try {
-      final invited = widget.user.canManageLists
-          ? await widget.api.invitables(widget.selectedList.id)
+      final invited = (widget.user.canManageLists && widget.selectedList != null)
+          ? await widget.api.invitables(widget.selectedList!.id)
           : <Participant>[];
       final users = widget.user.isAmosAdmin
           ? await widget.api.adminUsers()
@@ -91,119 +91,170 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  bool get canDeleteList => widget.user.canDeleteList(widget.selectedList);
+  bool get canDeleteList =>
+      widget.selectedList != null &&
+      widget.user.canDeleteList(widget.selectedList!);
 
   @override
   Widget build(BuildContext context) => ListView(
         padding: const EdgeInsets.only(top: 8, bottom: 30),
         children: [
           _title('Lista attiva'),
-          SurfaceCard(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(widget.selectedList.id),
-                    value: widget.selectedList.id,
-                    decoration: const InputDecoration(labelText: 'Lista'),
-                    items: widget.lists
-                        .map(
-                          (list) => DropdownMenuItem(
-                            value: list.id,
-                            child: Text(
-                              '${list.nome} · ${list.participantCount} partecipanti',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: busy
-                        ? null
-                        : (value) {
-                            if (value != null) widget.selectList(value);
-                          },
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Creata da ${widget.selectedList.creatorUsername}',
-                      style: const TextStyle(color: muted),
-                    ),
-                  ),
-                  if (widget.user.canManageLists || canDeleteList) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        if (widget.user.canManageLists)
-                          Expanded(
-                            child: FilledButton.tonalIcon(
-                              key: const Key('create-list'),
-                              onPressed: busy ? null : createList,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: sunsetSoft,
-                                foregroundColor: sunset,
-                                minimumSize: const Size(48, 50),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
+          if (widget.selectedList != null)
+            SurfaceCard(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      key: ValueKey(widget.selectedList!.id),
+                      value: widget.selectedList!.id,
+                      decoration: const InputDecoration(labelText: 'Lista'),
+                      items: widget.lists
+                          .map(
+                            (list) => DropdownMenuItem(
+                              value: list.id,
+                              child: Text(
+                                '${list.nome} · ${list.participantCount} partecipanti',
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Crea lista'),
                             ),
-                          ),
-                        if (widget.user.canManageLists && canDeleteList)
-                          const SizedBox(width: 8),
-                        if (canDeleteList)
-                          Expanded(
-                            child: FilledButton.tonalIcon(
-                              onPressed: busy ? null : deleteList,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFFFBEBE8),
-                                foregroundColor: danger,
-                                minimumSize: const Size(48, 50),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              icon: const Icon(Icons.delete_outline),
-                              label: const Text('Elimina'),
-                            ),
-                          ),
-                      ],
+                          )
+                          .toList(),
+                      onChanged: busy
+                          ? null
+                          : (value) {
+                              if (value != null) widget.selectList(value);
+                            },
                     ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Creata da ${widget.selectedList!.creatorUsername}',
+                        style: const TextStyle(color: muted),
+                      ),
+                    ),
+                    if (widget.user.canManageLists || canDeleteList) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          if (widget.user.canManageLists)
+                            Expanded(
+                              child: FilledButton.tonalIcon(
+                                key: const Key('create-list'),
+                                onPressed: busy ? null : createList,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: sunsetSoft,
+                                  foregroundColor: sunset,
+                                  minimumSize: const Size(48, 50),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Crea lista'),
+                              ),
+                            ),
+                          if (widget.user.canManageLists && canDeleteList)
+                            const SizedBox(width: 8),
+                          if (canDeleteList)
+                            Expanded(
+                              child: FilledButton.tonalIcon(
+                                onPressed: busy ? null : deleteList,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFBEBE8),
+                                  foregroundColor: danger,
+                                  minimumSize: const Size(48, 50),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                icon: const Icon(Icons.delete_outline),
+                                label: const Text('Elimina'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-          ),
-          _title('Partecipanti'),
-          ...widget.participants.map(
-            (person) => SurfaceCard(
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: sageSoft,
-                  foregroundColor: sage,
-                  child: Icon(Icons.person),
                 ),
-                title: Text(person.username),
-                subtitle: Text(person.ruolo),
+              ),
+            )
+          else
+            SurfaceCard(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Nessuna lista attiva',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Non ci sono liste create o disponibili al momento.',
+                      style: TextStyle(color: muted, fontSize: 13),
+                    ),
+                    if (widget.user.canManageLists) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          key: const Key('create-list'),
+                          onPressed: busy ? null : createList,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: sunsetSoft,
+                            foregroundColor: sunset,
+                            minimumSize: const Size(48, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Crea lista'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-          ),
-          if (widget.user.canManageLists)
-            InviteTile(
-              availableCount: invitables?.length,
-              busy: busy,
-              onInvite: invite,
+          if (widget.selectedList != null) ...[
+            _title('Partecipanti'),
+            ...widget.participants.map(
+              (person) => SurfaceCard(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: sageSoft,
+                    foregroundColor: sage,
+                    child: Icon(Icons.person),
+                  ),
+                  title: Text(person.username),
+                  subtitle: Text(person.ruolo),
+                ),
+              ),
             ),
+            if (widget.user.canManageLists)
+              InviteTile(
+                availableCount: invitables?.length,
+                busy: busy,
+                onInvite: invite,
+              ),
+          ],
           if (widget.user.canInviteNewUsers)
             SurfaceCard(
               child: ListTile(
@@ -247,6 +298,7 @@ class _SettingsPageState extends State<SettingsPage> {
               busy: busy,
               onCreate: createUser,
               onEdit: editUser,
+              onDelete: deleteUser,
             ),
           ],
           Padding(
@@ -293,15 +345,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> deleteList() async {
-    if (!await confirmDialog(
+    if (widget.selectedList == null) return;
+    final confirmed = await confirmDialog(
       context,
-      'Eliminare definitivamente la lista?',
-      'Saranno eliminati tutti i contenuti di “${widget.selectedList.nome}”.',
-    )) {
-      return;
-    }
+      'Elimina lista',
+      'Vuoi eliminare definitivamente la lista "${widget.selectedList!.nome}"?',
+    );
+    if (!confirmed) return;
     await mutate(() async {
-      await widget.api.deleteList(widget.selectedList.id);
+      await widget.api.deleteList(widget.selectedList!.id);
       await widget.refreshLists();
     }, success: 'Lista eliminata');
   }
@@ -324,9 +376,9 @@ class _SettingsPageState extends State<SettingsPage> {
             .toList(),
       ),
     );
-    if (selected == null) return;
+    if (selected == null || widget.selectedList == null) return;
     await mutate(() async {
-      await widget.api.invite(widget.selectedList.id, selected.id);
+      await widget.api.invite(widget.selectedList!.id, selected.id);
       await widget.reloadSelected();
       await widget.refreshLists();
       await loadRestricted();
@@ -607,6 +659,23 @@ class _SettingsPageState extends State<SettingsPage> {
       await loadRestricted();
     }, success: 'Utente aggiornato');
   }
+
+  Future<void> deleteUser(AdminUser user) async {
+    if (user.username == 'amos' || user.id == widget.user.id) {
+      showError(context, 'Non puoi eliminare questo account');
+      return;
+    }
+    final confirmed = await confirmDialog(
+      context,
+      'Elimina utente',
+      'Vuoi eliminare definitivamente l\'utente "${user.username}"?',
+    );
+    if (!confirmed) return;
+    await mutate(() async {
+      await widget.api.deleteUser(user.id);
+      await loadRestricted();
+    }, success: 'Utente "${user.username}" eliminato');
+  }
 }
 
 class InviteTile extends StatelessWidget {
@@ -648,6 +717,7 @@ class AdminSection extends StatefulWidget {
   final bool busy;
   final VoidCallback onCreate;
   final ValueChanged<AdminUser> onEdit;
+  final ValueChanged<AdminUser> onDelete;
 
   const AdminSection({
     super.key,
@@ -655,6 +725,7 @@ class AdminSection extends StatefulWidget {
     required this.busy,
     required this.onCreate,
     required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -809,10 +880,22 @@ class _AdminSectionState extends State<AdminSection> {
             ],
           ),
         ),
-        trailing: IconButton(
-          onPressed: widget.busy ? null : () => widget.onEdit(user),
-          icon: const Icon(Icons.edit_outlined),
-          tooltip: 'Modifica utente',
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: widget.busy ? null : () => widget.onEdit(user),
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Modifica utente',
+            ),
+            if (user.username != 'amos')
+              IconButton(
+                key: Key('delete-user-${user.id}'),
+                onPressed: widget.busy ? null : () => widget.onDelete(user),
+                icon: const Icon(Icons.delete_outline, color: danger),
+                tooltip: 'Elimina utente',
+              ),
+          ],
         ),
       ),
     );

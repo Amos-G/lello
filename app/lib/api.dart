@@ -296,6 +296,8 @@ class Api {
         if (password != null) 'password': password,
         if (canInviteUsers != null) 'can_invite_users': canInviteUsers,
       });
+  Future<void> deleteUser(String id) =>
+      _request('DELETE', '/api/admin/utenti/$id');
 
   Future<WebSocketChannel> socket() async {
     final base = Uri.parse(backendUrl);

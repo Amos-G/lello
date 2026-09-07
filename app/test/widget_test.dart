@@ -86,21 +86,46 @@ void main() {
     );
   });
 
-  testWidgets('la sezione admin espone creazione utenti', (tester) async {
+  testWidgets('la sezione admin espone creazione utenti ed eliminazione utenti', (tester) async {
+    AdminUser? deletedUser;
+    const testAdminUsers = [
+      AdminUser(
+        id: 'u-1',
+        username: 'amos',
+        ruolo: 'superadmin',
+        totpEnabled: true,
+      ),
+      AdminUser(
+        id: 'u-2',
+        username: 'giovanni',
+        ruolo: 'guida',
+        totpEnabled: false,
+      ),
+    ];
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: AdminSection(
-            users: const [],
+            users: testAdminUsers,
             busy: false,
             onCreate: () {},
             onEdit: (_) {},
+            onDelete: (user) => deletedUser = user,
           ),
         ),
       ),
     );
     expect(find.byKey(const Key('admin-section')), findsOneWidget);
     expect(find.byKey(const Key('create-user')), findsOneWidget);
+
+    // amos superadmin non ha il pulsante di eliminazione
+    expect(find.byKey(const Key('delete-user-u-1')), findsNothing);
+    // giovanni ha il pulsante di eliminazione
+    expect(find.byKey(const Key('delete-user-u-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('delete-user-u-2')));
+    expect(deletedUser?.username, equals('giovanni'));
   });
 
   testWidgets('il selettore spesa consente una selezione mirata', (
@@ -694,6 +719,40 @@ void main() {
       // Verifica altezza coerente (50px)
       expect(buttonRect.height, equals(50));
       expect(buttonRect.width, equals(50));
+    });
+
+    testWidgets('SettingsPage supporta selectedList null per superadmin senza liste', (tester) async {
+      const superUser = AppUser(
+        id: '1',
+        username: 'amos',
+        ruolo: 'superadmin',
+        totpEnabled: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: SettingsPage(
+              api: Api(),
+              user: superUser,
+              lists: const [],
+              selectedList: null,
+              participants: const [],
+              selectList: (_) async {},
+              refreshLists: () async {},
+              reloadSelected: () async {},
+              onLogout: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Nessuna lista attiva'), findsOneWidget);
+      expect(find.text('Gestione utenti'), findsOneWidget);
+      expect(find.text('Profilo e sicurezza'), findsOneWidget);
+      expect(find.text('Esci', skipOffstage: false), findsOneWidget);
     });
   });
 }

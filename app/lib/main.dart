@@ -880,7 +880,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
       );
     }
-    if (lists.isEmpty) {
+    if (lists.isEmpty && !(user?.isAmosAdmin ?? false)) {
       return Scaffold(
         appBar: appBar(),
         body: Column(
@@ -917,30 +917,69 @@ class _HomeShellState extends State<HomeShell> {
         ),
       );
     }
-    final currentList = selectedList!;
+    final currentList = selectedList;
     final pages = [
-      ItemsPage(
-        api: widget.api,
-        listId: currentList.id,
-        items: items,
-        labels: labels,
-        reload: reloadSelected,
-      ),
-      ScenariosPage(
-        api: widget.api,
-        listId: currentList.id,
-        items: items,
-        scenarios: scenarios,
-        labels: labels,
-        reload: reloadSelected,
-      ),
-      ExpensesPage(
-        api: widget.api,
-        listId: currentList.id,
-        currentUserId: user!.id,
-        report: expenses,
-        reload: reloadExpenses,
-      ),
+      currentList != null
+          ? ItemsPage(
+              api: widget.api,
+              listId: currentList.id,
+              items: items,
+              labels: labels,
+              reload: reloadSelected,
+            )
+          : EmptyState(
+              title: 'Nessuna lista attiva',
+              subtitle: 'Crea la prima lista per iniziare.',
+              icon: Icons.checklist_rounded,
+              action: (user?.canManageLists ?? false)
+                  ? FilledButton.icon(
+                      onPressed: createFirstList,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Crea lista'),
+                    )
+                  : null,
+            ),
+      currentList != null
+          ? ScenariosPage(
+              api: widget.api,
+              listId: currentList.id,
+              items: items,
+              scenarios: scenarios,
+              labels: labels,
+              reload: reloadSelected,
+            )
+          : EmptyState(
+              title: 'Nessuna lista attiva',
+              subtitle: 'Crea una lista per gestire gli scenari.',
+              icon: Icons.landscape_rounded,
+              action: (user?.canManageLists ?? false)
+                  ? FilledButton.icon(
+                      onPressed: createFirstList,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Crea lista'),
+                    )
+                  : null,
+            ),
+      currentList != null
+          ? ExpensesPage(
+              api: widget.api,
+              listId: currentList.id,
+              currentUserId: user!.id,
+              report: expenses,
+              reload: reloadExpenses,
+            )
+          : EmptyState(
+              title: 'Nessuna lista attiva',
+              subtitle: 'Crea una lista per gestire le spese.',
+              icon: Icons.account_balance_wallet_rounded,
+              action: (user?.canManageLists ?? false)
+                  ? FilledButton.icon(
+                      onPressed: createFirstList,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Crea lista'),
+                    )
+                  : null,
+            ),
       PrivateListPage(account: user!.username, items: items, labels: labels),
       SettingsPage(
         api: widget.api,
