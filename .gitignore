@@ -18,9 +18,11 @@
 
 # Signing material and distributable binaries are produced locally.
 /release/
+/lello-ios-unsigned/
 *.apk
 *.aab
 *.ipa
+*.zip
 
 # -----------------------------------------------------------------------------
 # Flutter / Dart
