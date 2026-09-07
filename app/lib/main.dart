@@ -441,6 +441,9 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   AppUser? user;
   List<PartyList> lists = [];
+  List<PartyList> pendingInvites = [];
+  Set<String> acceptedListIds = {};
+  Set<String> rejectedListIds = {};
   String? selectedListId;
   List<Elemento> items = [];
   List<Scenario> scenarios = [];
@@ -482,21 +485,72 @@ class _HomeShellState extends State<HomeShell> {
     bootstrap();
   }
 
+  Future<void> loadInvitationsState(String userId) async {
+    try {
+      final acceptedJson =
+          await Api.storage.read(key: 'user_$userId:accepted_lists');
+      final rejectedJson =
+          await Api.storage.read(key: 'user_$userId:rejected_lists');
+      acceptedListIds = acceptedJson != null
+          ? Set<String>.from(jsonDecode(acceptedJson) as List)
+          : {};
+      rejectedListIds = rejectedJson != null
+          ? Set<String>.from(jsonDecode(rejectedJson) as List)
+          : {};
+    } catch (_) {
+      acceptedListIds = {};
+      rejectedListIds = {};
+    }
+  }
+
+  Future<void> saveInvitationsState(String userId) async {
+    try {
+      await Api.storage.write(
+        key: 'user_$userId:accepted_lists',
+        value: jsonEncode(acceptedListIds.toList()),
+      );
+      await Api.storage.write(
+        key: 'user_$userId:rejected_lists',
+        value: jsonEncode(rejectedListIds.toList()),
+      );
+    } catch (_) {}
+  }
+
   Future<void> bootstrap() async {
     try {
       final current = await widget.api.me();
-      final available = await widget.api.lists();
+      await loadInvitationsState(current.id);
+      final rawLists = await widget.api.lists();
+      final pending = findPendingInvites(
+        rawLists,
+        current.id,
+        acceptedListIds,
+        rejectedListIds,
+      );
+      final visible = filterAcceptedLists(
+        rawLists,
+        current.id,
+        acceptedListIds,
+        rejectedListIds,
+      );
       final stored = await Api.storage.read(key: 'selected_list_id');
-      final resolved = resolveSelectedListId(available, stored);
+      final resolved = resolveSelectedListId(visible, stored);
       if (!mounted) return;
       setState(() {
         user = current;
-        lists = available;
+        lists = visible;
+        pendingInvites = pending;
         selectedListId = resolved;
         loading = false;
       });
       if (resolved != null) await reloadSelected();
       unawaited(connectSocket());
+
+      if (pending.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) promptNextInvite();
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -509,13 +563,27 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> refreshLists() async {
     final current = await widget.api.me();
-    final available = await widget.api.lists();
+    await loadInvitationsState(current.id);
+    final rawLists = await widget.api.lists();
+    final pending = findPendingInvites(
+      rawLists,
+      current.id,
+      acceptedListIds,
+      rejectedListIds,
+    );
+    final visible = filterAcceptedLists(
+      rawLists,
+      current.id,
+      acceptedListIds,
+      rejectedListIds,
+    );
     final old = selectedListId;
-    final resolved = resolveSelectedListId(available, old);
+    final resolved = resolveSelectedListId(visible, old);
     if (!mounted) return;
     setState(() {
       user = current;
-      lists = available;
+      lists = visible;
+      pendingInvites = pending;
       selectedListId = resolved;
     });
     if (resolved == null) {
@@ -525,6 +593,107 @@ class _HomeShellState extends State<HomeShell> {
       await Api.storage.write(key: 'selected_list_id', value: resolved);
       if (resolved != old) clearContent();
       await reloadSelected();
+    }
+  }
+
+  Future<void> acceptInvite(PartyList list) async {
+    if (user == null) return;
+    acceptedListIds.add(list.id);
+    rejectedListIds.remove(list.id);
+    await saveInvitationsState(user!.id);
+    await refreshLists();
+    await selectList(list.id);
+    if (mounted) {
+      showSuccess(context, 'Hai accettato l’invito a “${list.nome}”!');
+    }
+  }
+
+  Future<void> declineInvite(PartyList list) async {
+    if (user == null) return;
+    rejectedListIds.add(list.id);
+    acceptedListIds.remove(list.id);
+    await saveInvitationsState(user!.id);
+    await refreshLists();
+    if (mounted) {
+      showSuccess(context, 'Hai rifiutato l’invito a “${list.nome}”.');
+    }
+  }
+
+  Future<void> promptInvite(PartyList list) async {
+    final accept = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.mail_outline, color: lagoon),
+            SizedBox(width: 8),
+            Text('Nuovo invito a una lista'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${list.creatorUsername.isNotEmpty ? list.creatorUsername : "Una guida"} ti ha invitato a partecipare alla lista:',
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: sand0,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: line),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.playlist_add_check, color: sunset),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      list.nome,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Vuoi accettare l’invito per visualizzare e gestire elementi e spese?',
+              style: TextStyle(fontSize: 13, color: muted),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            key: const Key('decline-invite'),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Rifiuta', style: TextStyle(color: danger)),
+          ),
+          FilledButton(
+            key: const Key('accept-invite'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Accetta'),
+          ),
+        ],
+      ),
+    );
+
+    if (accept == true) {
+      await acceptInvite(list);
+    } else if (accept == false) {
+      await declineInvite(list);
+    }
+  }
+
+  void promptNextInvite() {
+    if (pendingInvites.isNotEmpty && mounted) {
+      promptInvite(pendingInvites.first);
     }
   }
 
@@ -642,9 +811,28 @@ class _HomeShellState extends State<HomeShell> {
         (message['payload'] as Map?) ?? const {},
       );
       final listId = payload['lista_id']?.toString();
-      if (event == 'lista.invited' || event == 'lista.deleted') {
+      if (event == 'lista.invited') {
         eventDebounce?.cancel();
-        eventDebounce = Timer(const Duration(milliseconds: 180), refreshLists);
+        eventDebounce = Timer(const Duration(milliseconds: 180), () async {
+          await refreshLists();
+          if (mounted && pendingInvites.isNotEmpty) {
+            promptNextInvite();
+          }
+        });
+        return;
+      }
+      if (event == 'lista.deleted') {
+        eventDebounce?.cancel();
+        eventDebounce = Timer(const Duration(milliseconds: 180), () async {
+          final wasSelected = listId == selectedListId;
+          await refreshLists();
+          if (wasSelected && mounted) {
+            showError(
+              context,
+              'La lista attiva è stata eliminata da una guida o amministratore.',
+            );
+          }
+        });
         return;
       }
       if (listId != selectedListId) return;
@@ -695,19 +883,37 @@ class _HomeShellState extends State<HomeShell> {
     if (lists.isEmpty) {
       return Scaffold(
         appBar: appBar(),
-        body: EmptyState(
-          title: 'Nessuna lista disponibile',
-          subtitle: user!.canManageLists
-              ? 'Crea la prima lista per iniziare.'
-              : 'Una guida deve invitarti a una lista.',
-          icon: Icons.playlist_remove,
-          action: user!.canManageLists
-              ? FilledButton.icon(
-                  onPressed: createFirstList,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Crea lista'),
-                )
-              : null,
+        body: Column(
+          children: [
+            if (pendingInvites.isNotEmpty)
+              _buildPendingInvitesBanner(),
+            Expanded(
+              child: EmptyState(
+                title: 'Nessuna lista attiva',
+                subtitle: pendingInvites.isNotEmpty
+                    ? 'Hai ${pendingInvites.length} invito in attesa di risposta.'
+                    : user!.canManageLists
+                        ? 'Crea la prima lista per iniziare.'
+                        : 'Una guida deve invitarti a una lista.',
+                icon: pendingInvites.isNotEmpty
+                    ? Icons.mail_outline
+                    : Icons.playlist_remove,
+                action: pendingInvites.isNotEmpty
+                    ? FilledButton.icon(
+                        onPressed: promptNextInvite,
+                        icon: const Icon(Icons.mail_outline),
+                        label: const Text('Visualizza inviti'),
+                      )
+                    : user!.canManageLists
+                        ? FilledButton.icon(
+                            onPressed: createFirstList,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Crea lista'),
+                          )
+                        : null,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -750,9 +956,17 @@ class _HomeShellState extends State<HomeShell> {
     ];
     return Scaffold(
       appBar: appBar(),
-      body: contentLoading
-          ? const Center(child: CircularProgressIndicator())
-          : IndexedStack(index: tab, children: pages),
+      body: Column(
+        children: [
+          if (pendingInvites.isNotEmpty)
+            _buildPendingInvitesBanner(),
+          Expanded(
+            child: contentLoading
+                ? const Center(child: CircularProgressIndicator())
+                : IndexedStack(index: tab, children: pages),
+          ),
+        ],
+      ),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         decoration: BoxDecoration(
@@ -796,6 +1010,40 @@ class _HomeShellState extends State<HomeShell> {
       ),
     );
   }
+
+  Widget _buildPendingInvitesBanner() => Container(
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: sunsetSoft,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: sunset.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.mark_email_unread_outlined, color: sunset),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Hai ${pendingInvites.length} ${pendingInvites.length == 1 ? "invito in attesa" : "inviti in attesa"}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: ink,
+                ),
+              ),
+            ),
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                visualDensity: VisualDensity.compact,
+              ),
+              onPressed: promptNextInvite,
+              child: const Text('Rispondi'),
+            ),
+          ],
+        ),
+      );
 
   AppBar appBar() => AppBar(
         title: Row(

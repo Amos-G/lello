@@ -61,7 +61,7 @@ class ObligationCard extends StatelessWidget {
               ? FilledButton(
                   key: const Key('pay-obligation'),
                   onPressed: onPay,
-                  child: const Text('Paga'),
+                  child: const Text('Salda'),
                 )
               : null,
         ),
@@ -104,6 +104,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
   }
 
   String participantNames(Spesa expense) {
+    if (expense.participantIds.length == widget.report.participants.length &&
+        widget.report.participants.isNotEmpty) {
+      return 'Tutti (${widget.report.participants.length})';
+    }
     final names = widget.report.participants
         .where((person) => expense.participantIds.contains(person.userId))
         .map((person) => person.username)
@@ -123,7 +127,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
-                      'Totale: ${euro(widget.report.totalCents)}',
+                      'Totale spese: ${euro(widget.report.totalCents)}',
                       style:
                           Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
@@ -131,7 +135,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     ),
                   ),
                   SizedBox(
-                    height: 105,
+                    height: 120,
                     child: ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       scrollDirection: Axis.horizontal,
@@ -146,7 +150,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    person.username,
+                                    person.userId == widget.currentUserId
+                                        ? '${person.username} (Tu)'
+                                        : person.username,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -164,8 +170,13 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                   ),
                                   Text(
                                     euro(person.balanceCents.abs()),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
+                                      color: person.balanceCents < 0
+                                          ? danger
+                                          : person.balanceCents > 0
+                                              ? sage
+                                              : ink,
                                     ),
                                   ),
                                 ],
@@ -179,7 +190,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 18, 16, 4),
                       child: Text(
-                        'Obblighi di pagamento',
+                        'Saldi e debiti rimanenti',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -187,7 +198,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       (obligation) => ObligationCard(
                         obligation: obligation,
                         currentUserId: widget.currentUserId,
-                        onPay: () => paymentDialog(obligation),
+                        onPay: () => paymentDialog(obligation: obligation),
                       ),
                     ),
                   ],
@@ -195,39 +206,59 @@ class _ExpensesPageState extends State<ExpensesPage> {
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 18, 16, 4),
                       child: Text(
-                        'Pagamenti registrati',
+                        'Saldi e rimborsi registrati',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                     ...widget.report.payments.map(
                       (payment) => SurfaceCard(
                         child: ListTile(
-                          leading: const Icon(Icons.receipt_long_outlined),
+                          leading: const Icon(
+                            Icons.check_circle_outline,
+                            color: sage,
+                          ),
                           title: Text(
                             '${payment.fromUsername} → ${payment.toUsername}',
                           ),
-                          subtitle:
-                              payment.note == null ? null : Text(payment.note!),
+                          subtitle: Text(
+                            [
+                              if (payment.note != null &&
+                                  payment.note!.isNotEmpty)
+                                payment.note!,
+                              if (payment.fromUserId == widget.currentUserId)
+                                'Registrato da te',
+                            ].join(' · '),
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 euro(payment.amountCents),
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.bold,
+                                  color: sage,
+                                ),
                               ),
                               if (payment.fromUserId == widget.currentUserId)
                                 IconButton(
-                                  tooltip: 'Elimina pagamento',
+                                  tooltip: 'Elimina saldo',
                                   color: danger,
                                   onPressed: busy
                                       ? null
-                                      : () => mutate(
-                                            widget.api.deletePayment(
-                                              widget.listId,
-                                              payment.id,
-                                            ),
-                                          ),
+                                      : () async {
+                                          if (await confirmDialog(
+                                            context,
+                                            'Eliminare questo saldo?',
+                                            'Il debito verrà ripristinato nei conteggi.',
+                                          )) {
+                                            await mutate(
+                                              widget.api.deletePayment(
+                                                widget.listId,
+                                                payment.id,
+                                              ),
+                                            );
+                                          }
+                                        },
                                   icon: const Icon(Icons.delete_outline),
                                 ),
                             ],
@@ -239,15 +270,16 @@ class _ExpensesPageState extends State<ExpensesPage> {
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 18, 16, 4),
                     child: Text(
-                      'Spese',
+                      'Spese della lista',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                   if (widget.report.spese.isEmpty)
-                    const SizedBox(
-                      height: 230,
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
                       child: EmptyState(
                         title: 'Nessuna spesa',
+                        subtitle: 'Inserisci la prima spesa per la lista attiva.',
                         icon: Icons.account_balance_wallet_outlined,
                       ),
                     )
@@ -264,7 +296,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            '${expense.username} · inclusi: ${participantNames(expense)}',
+                            '${expense.userId == widget.currentUserId ? "Creata da te" : "Pagata da ${expense.username}"} · ${participantNames(expense)}',
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -272,7 +304,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
                               Text(
                                 euro(expense.importoCents),
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               if (expense.userId == widget.currentUserId)
                                 IconButton(
@@ -306,14 +339,28 @@ class _ExpensesPageState extends State<ExpensesPage> {
             ),
           ),
           ComposerSurface(
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: const Key('add-expense'),
-                onPressed: busy ? null : expenseDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Aggiungi spesa'),
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: const Key('add-settlement'),
+                    onPressed: busy
+                        ? null
+                        : () => paymentDialog(),
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('Registra saldo'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    key: const Key('add-expense'),
+                    onPressed: busy ? null : expenseDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Aggiungi spesa'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -322,77 +369,154 @@ class _ExpensesPageState extends State<ExpensesPage> {
   Future<void> expenseDialog() async {
     final description = TextEditingController();
     final amount = TextEditingController();
+    bool allParticipants = true;
     var selected =
         widget.report.participants.map((person) => person.userId).toSet();
+
     final data = await showDialog<(String, int, List<String>)>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Nuova spesa'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: description,
-                  decoration: const InputDecoration(labelText: 'Descrizione'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amount,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
+        builder: (context, setDialogState) {
+          final cents = parseEuroCents(amount.text);
+          final quotaPreview = (cents != null && cents > 0 && selected.isNotEmpty)
+              ? euro((cents / selected.length).round())
+              : null;
+
+          return AlertDialog(
+            title: const Text('Nuova spesa'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: description,
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Descrizione spesa'),
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Importo',
-                    suffixText: '€',
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Importo totale',
+                      suffixText: '€',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Dividi tra',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(height: 16),
+                  Material(
+                    color: sand0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: line),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: SwitchListTile(
+                      dense: true,
+                      title: const Text(
+                        'Riguarda tutti i partecipanti',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        allParticipants
+                            ? 'Inclusi tutti i ${widget.report.participants.length} partecipanti'
+                            : 'Personalizzato: ${selected.length} di ${widget.report.participants.length} inclusi',
+                      ),
+                      value: allParticipants,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          allParticipants = value;
+                          if (allParticipants) {
+                            selected = widget.report.participants
+                                .map((person) => person.userId)
+                                .toSet();
+                          }
+                        });
+                      },
+                    ),
                   ),
-                ),
-                ParticipantSelector(
-                  participants: widget.report.participants,
-                  selected: selected,
-                  onChanged: (value) => setDialogState(() => selected = value),
-                ),
-              ],
+                  if (!allParticipants) ...[
+                    const SizedBox(height: 12),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        'Seleziona i partecipanti inclusi:',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ParticipantSelector(
+                      participants: widget.report.participants,
+                      selected: selected,
+                      onChanged: (value) =>
+                          setDialogState(() => selected = value),
+                    ),
+                  ],
+                  if (quotaPreview != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: sageSoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.pie_chart_outline, color: sage, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Quota: $quotaPreview a testa (${selected.length} ${selected.length == 1 ? "persona" : "persone"})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: ink,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Annulla'),
-            ),
-            FilledButton(
-              key: const Key('submit-expense'),
-              onPressed: () {
-                final cents = parseEuroCents(amount.text);
-                if (description.text.trim().isEmpty ||
-                    cents == null ||
-                    cents <= 0) {
-                  showError(context, 'Inserisci descrizione e importo validi');
-                  return;
-                }
-                if (selected.isEmpty) {
-                  showError(context, 'Seleziona almeno un partecipante');
-                  return;
-                }
-                Navigator.pop(dialogContext, (
-                  description.text.trim(),
-                  cents,
-                  selected.toList(),
-                ));
-              },
-              child: const Text('Aggiungi'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Annulla'),
+              ),
+              FilledButton(
+                key: const Key('submit-expense'),
+                onPressed: () {
+                  final cents = parseEuroCents(amount.text);
+                  if (description.text.trim().isEmpty ||
+                      cents == null ||
+                      cents <= 0) {
+                    showError(context, 'Inserisci descrizione e importo validi');
+                    return;
+                  }
+                  if (selected.isEmpty) {
+                    showError(
+                      context,
+                      'Seleziona almeno un partecipante da includere',
+                    );
+                    return;
+                  }
+                  Navigator.pop(dialogContext, (
+                    description.text.trim(),
+                    cents,
+                    selected.toList(),
+                  ));
+                },
+                child: const Text('Aggiungi'),
+              ),
+            ],
+          );
+        },
       ),
     );
     description.dispose();
@@ -404,68 +528,146 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
   }
 
-  Future<void> paymentDialog(Obligation obligation) async {
-    final amount = TextEditingController(
-      text: euro(obligation.amountCents).replaceAll(' €', ''),
-    );
+  Future<void> paymentDialog({Obligation? obligation}) async {
+    final participantMap = <String, String>{
+      for (final p in widget.report.participants)
+        if (p.userId != widget.currentUserId) p.userId: p.username,
+    };
+    if (obligation != null) {
+      participantMap[obligation.toUserId] = obligation.toUsername;
+    }
+    for (final obl in widget.report.obligations) {
+      if (obl.fromUserId == widget.currentUserId) {
+        participantMap[obl.toUserId] = obl.toUsername;
+      }
+    }
+
+    if (participantMap.isEmpty) {
+      showError(
+        context,
+        'Non ci sono altri partecipanti a cui inviare un saldo',
+      );
+      return;
+    }
+
+    String selectedRecipientId = obligation?.toUserId ??
+        (widget.report.obligations
+                .where((o) => o.fromUserId == widget.currentUserId)
+                .map((o) => o.toUserId)
+                .firstOrNull ??
+            participantMap.keys.first);
+
+    final initialAmount = obligation != null
+        ? euro(obligation.amountCents).replaceAll(' €', '')
+        : '';
+    final amount = TextEditingController(text: initialAmount);
     final note = TextEditingController();
-    final result = await showDialog<(int, String?)>(
+
+    final result = await showDialog<(String, int, String?)>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Registra pagamento'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              initialValue: obligation.toUsername,
-              enabled: false,
-              decoration: const InputDecoration(labelText: 'Destinatario'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('payment-amount'),
-              controller: amount,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final matchedObligation = widget.report.obligations
+              .where((o) =>
+                  o.fromUserId == widget.currentUserId &&
+                  o.toUserId == selectedRecipientId)
+              .firstOrNull;
+
+          return AlertDialog(
+            title: const Text('Registra saldo o rimborso'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: selectedRecipientId,
+                    decoration: const InputDecoration(labelText: 'Destinatario'),
+                    items: participantMap.entries
+                        .map(
+                          (entry) => DropdownMenuItem(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() {
+                          selectedRecipientId = val;
+                          final newMatch = widget.report.obligations
+                              .where((o) =>
+                                  o.fromUserId == widget.currentUserId &&
+                                  o.toUserId == val)
+                              .firstOrNull;
+                          if (newMatch != null && amount.text.isEmpty) {
+                            amount.text = euro(newMatch.amountCents)
+                                .replaceAll(' €', '');
+                          }
+                        });
+                      }
+                    },
+                  ),
+                  if (matchedObligation != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Debito attuale: ${euro(matchedObligation.amountCents)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('payment-amount'),
+                    controller: amount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: matchedObligation != null
+                          ? 'Importo (puoi saldare anche in parte)'
+                          : 'Importo versato',
+                      suffixText: '€',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: note,
+                    decoration: const InputDecoration(
+                      labelText: 'Nota o causale (opzionale)',
+                      hintText: 'Es: Restituzione spesa, Bonifico, Contanti',
+                    ),
+                  ),
+                ],
               ),
-              decoration: InputDecoration(
-                labelText: 'Importo (max ${euro(obligation.amountCents)})',
-                suffixText: '€',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Annulla'),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: note,
-              decoration: const InputDecoration(labelText: 'Nota (opzionale)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Annulla'),
-          ),
-          FilledButton(
-            key: const Key('submit-payment'),
-            onPressed: () {
-              final cents = parseEuroCents(amount.text);
-              if (cents == null ||
-                  cents <= 0 ||
-                  cents > obligation.amountCents) {
-                showError(
-                  dialogContext,
-                  'Importo non valido o superiore al debito residuo',
-                );
-                return;
-              }
-              Navigator.pop(dialogContext, (
-                cents,
-                note.text.trim().isEmpty ? null : note.text.trim(),
-              ));
-            },
-            child: const Text('Registra'),
-          ),
-        ],
+              FilledButton(
+                key: const Key('submit-payment'),
+                onPressed: () {
+                  final cents = parseEuroCents(amount.text);
+                  if (cents == null || cents <= 0) {
+                    showError(dialogContext, 'Inserisci un importo valido');
+                    return;
+                  }
+                  Navigator.pop(dialogContext, (
+                    selectedRecipientId,
+                    cents,
+                    note.text.trim().isEmpty ? null : note.text.trim(),
+                  ));
+                },
+                child: const Text('Registra'),
+              ),
+            ],
+          );
+        },
       ),
     );
     amount.dispose();
@@ -474,9 +676,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
       await mutate(
         widget.api.addPayment(
           widget.listId,
-          obligation.toUserId,
           result.$1,
           result.$2,
+          result.$3,
         ),
       );
     }

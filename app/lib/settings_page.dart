@@ -91,9 +91,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  bool get canDeleteList =>
-      widget.user.ruolo == 'superadmin' ||
-      widget.selectedList.creatorId == widget.user.id;
+  bool get canDeleteList => widget.user.canDeleteList(widget.selectedList);
 
   @override
   Widget build(BuildContext context) => ListView(

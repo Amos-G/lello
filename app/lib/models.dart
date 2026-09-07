@@ -21,6 +21,8 @@ class AppUser {
   bool get isAmosAdmin => username == 'amos' && ruolo == 'superadmin';
   bool get canInviteNewUsers =>
       isAmosAdmin || (ruolo == 'guida' && canInviteUsers);
+  bool canDeleteList(PartyList list) =>
+      ruolo == 'superadmin' || list.creatorId == id;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: idString(json['id']),
@@ -347,3 +349,33 @@ Set<String> toggleParticipantSelection(
   enabled ? next.add(participantId) : next.remove(participantId);
   return next;
 }
+
+List<PartyList> filterAcceptedLists(
+  List<PartyList> allLists,
+  String currentUserId,
+  Set<String> acceptedIds,
+  Set<String> rejectedIds,
+) =>
+    allLists
+        .where(
+          (list) =>
+              !rejectedIds.contains(list.id) &&
+              (list.creatorId == currentUserId || acceptedIds.contains(list.id)),
+        )
+        .toList();
+
+List<PartyList> findPendingInvites(
+  List<PartyList> allLists,
+  String currentUserId,
+  Set<String> acceptedIds,
+  Set<String> rejectedIds,
+) =>
+    allLists
+        .where(
+          (list) =>
+              list.creatorId != currentUserId &&
+              !acceptedIds.contains(list.id) &&
+              !rejectedIds.contains(list.id),
+        )
+        .toList();
+

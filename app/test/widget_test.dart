@@ -342,6 +342,330 @@ void main() {
       expect(find.text('Hai già un account? Accedi'), findsOneWidget);
     },
   );
+
+  group('Gestione Inviti e Liste', () {
+    const listPropria = PartyList(
+      id: '1',
+      nome: 'Festa di Amos',
+      creatorId: 'user-1',
+      creatorUsername: 'amos',
+      participantCount: 2,
+    );
+    const listInvitata1 = PartyList(
+      id: '2',
+      nome: 'Festa di Luca',
+      creatorId: 'user-2',
+      creatorUsername: 'luca',
+      participantCount: 3,
+    );
+    const listInvitata2 = PartyList(
+      id: '3',
+      nome: 'Festa di Marco',
+      creatorId: 'user-3',
+      creatorUsername: 'marco',
+      participantCount: 5,
+    );
+
+    test('filtro inviti accetta e rifiuta distingue correttamente le liste', () {
+      final all = [listPropria, listInvitata1, listInvitata2];
+      final accepted = {'2'};
+      final rejected = {'3'};
+
+      final visible = filterAcceptedLists(all, 'user-1', accepted, rejected);
+      expect(visible.map((l) => l.id).toList(), ['1', '2']);
+
+      final pending = findPendingInvites(all, 'user-1', accepted, rejected);
+      expect(pending, isEmpty);
+
+      // Nuovo invito non ancora gestito
+      const listNuova = PartyList(
+        id: '4',
+        nome: 'Festa Nuova',
+        creatorId: 'user-4',
+        creatorUsername: 'anna',
+        participantCount: 2,
+      );
+      final withNew = [...all, listNuova];
+      final pendingNew = findPendingInvites(withNew, 'user-1', accepted, rejected);
+      expect(pendingNew.length, 1);
+      expect(pendingNew.first.id, '4');
+    });
+
+    test('regole di eliminazione liste per admin e guide', () {
+      const admin = AppUser(
+        id: 'admin-1',
+        username: 'amos',
+        ruolo: 'superadmin',
+        totpEnabled: false,
+      );
+      const guida = AppUser(
+        id: 'guida-1',
+        username: 'mario',
+        ruolo: 'guida',
+        totpEnabled: false,
+      );
+      const listDiMario = PartyList(
+        id: '10',
+        nome: 'Lista Escursione',
+        creatorId: 'guida-1',
+        creatorUsername: 'mario',
+        participantCount: 4,
+      );
+      const listDiAltro = PartyList(
+        id: '20',
+        nome: 'Lista Altra',
+        creatorId: 'altro-99',
+        creatorUsername: 'giovanni',
+        participantCount: 2,
+      );
+
+      // Admin può eliminare qualsiasi lista
+      expect(admin.canDeleteList(listDiMario), isTrue);
+      expect(admin.canDeleteList(listDiAltro), isTrue);
+
+      // Guida può eliminare solo la propria lista
+      expect(guida.canDeleteList(listDiMario), isTrue);
+      expect(guida.canDeleteList(listDiAltro), isFalse);
+    });
+
+    testWidgets('impostazioni mostra Elimina per admin o per guida se creatrice', (tester) async {
+      const guida = AppUser(
+        id: 'guida-1',
+        username: 'mario',
+        ruolo: 'guida',
+        totpEnabled: false,
+      );
+      const listPropria = PartyList(
+        id: '10',
+        nome: 'Lista Escursione',
+        creatorId: 'guida-1',
+        creatorUsername: 'mario',
+        participantCount: 4,
+      );
+      const listAltra = PartyList(
+        id: '20',
+        nome: 'Lista Altra',
+        creatorId: 'altro-99',
+        creatorUsername: 'giovanni',
+        participantCount: 2,
+      );
+
+      // Guida con lista propria -> vede pulsante Elimina
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SettingsPage(
+              api: Api(),
+              user: guida,
+              lists: const [listPropria],
+              selectedList: listPropria,
+              participants: const [],
+              selectList: (_) async {},
+              refreshLists: () async {},
+              reloadSelected: () async {},
+              onLogout: () {},
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Elimina'), findsOneWidget);
+
+      // Guida con lista creata da altri -> NON vede pulsante Elimina
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SettingsPage(
+              api: Api(),
+              user: guida,
+              lists: const [listAltra],
+              selectedList: listAltra,
+              participants: const [],
+              selectList: (_) async {},
+              refreshLists: () async {},
+              reloadSelected: () async {},
+              onLogout: () {},
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Elimina'), findsNothing);
+    });
+
+    testWidgets('dialog invito mostra opzioni Accetta e Rifiuta', (tester) async {
+      const list = PartyList(
+        id: '100',
+        nome: 'Compleanno Giulia',
+        creatorId: 'user-5',
+        creatorUsername: 'giulia',
+        participantCount: 8,
+      );
+
+      bool? accepted;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    accepted = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Nuovo invito a una lista'),
+                        content: Text('${list.creatorUsername} ti ha invitato alla lista ${list.nome}'),
+                        actions: [
+                          TextButton(
+                            key: const Key('decline-invite'),
+                            onPressed: () => Navigator.pop(dialogContext, false),
+                            child: const Text('Rifiuta'),
+                          ),
+                          FilledButton(
+                            key: const Key('accept-invite'),
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: const Text('Accetta'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Text('Mostra Invito'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Mostra Invito'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nuovo invito a una lista'), findsOneWidget);
+      expect(find.text('giulia ti ha invitato alla lista Compleanno Giulia'), findsOneWidget);
+      expect(find.byKey(const Key('decline-invite')), findsOneWidget);
+      expect(find.byKey(const Key('accept-invite')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('accept-invite')));
+      await tester.pumpAndSettle();
+
+      expect(accepted, isTrue);
+    });
+  });
+
+  group('Gestione Spese con Esclusione Partecipanti e Saldi', () {
+    const p1 = ExpenseParticipant(
+      userId: 'user-1',
+      username: 'Amos',
+      paidCents: 2000,
+      shareCents: 1000,
+      balanceCents: 1000,
+    );
+    const p2 = ExpenseParticipant(
+      userId: 'user-2',
+      username: 'Luca',
+      paidCents: 0,
+      shareCents: 1000,
+      balanceCents: -1000,
+    );
+    final spesaPropria = Spesa(
+      id: 's-1',
+      userId: 'user-1',
+      username: 'Amos',
+      descrizione: 'Pizza',
+      importoCents: 2000,
+      participantIds: const ['user-1', 'user-2'],
+      createdAt: _fixedDate,
+    );
+    final spesaAltro = Spesa(
+      id: 's-2',
+      userId: 'user-2',
+      username: 'Luca',
+      descrizione: 'Bibite',
+      importoCents: 1000,
+      participantIds: const ['user-1', 'user-2'],
+      createdAt: _fixedDate,
+    );
+    const obligation = Obligation(
+      fromUserId: 'user-2',
+      fromUsername: 'Luca',
+      toUserId: 'user-1',
+      toUsername: 'Amos',
+      amountCents: 1000,
+    );
+
+    testWidgets('mostra pulsanti Aggiungi spesa e Registra saldo', (tester) async {
+      final report = SpeseReport(
+        spese: [spesaPropria, spesaAltro],
+        payments: const [],
+        participants: const [p1, p2],
+        obligations: const [obligation],
+        totalCents: 3000,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ExpensesPage(
+              api: Api(),
+              listId: '10',
+              currentUserId: 'user-1',
+              report: report,
+              reload: () async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('add-expense')), findsOneWidget);
+      expect(find.byKey(const Key('add-settlement')), findsOneWidget);
+      expect(find.text('Pizza'), findsOneWidget);
+      expect(find.text('Bibite'), findsOneWidget);
+
+      // Solo la propria spesa (s-1) mostra il pulsante di eliminazione per user-1
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+    });
+
+    testWidgets('dialog nuova spesa permette switch per escludere partecipanti', (
+      tester,
+    ) async {
+      final report = SpeseReport(
+        spese: const [],
+        payments: const [],
+        participants: const [p1, p2],
+        obligations: const [],
+        totalCents: 0,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ExpensesPage(
+              api: Api(),
+              listId: '10',
+              currentUserId: 'user-1',
+              report: report,
+              reload: () async {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('add-expense')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nuova spesa'), findsOneWidget);
+      expect(find.text('Riguarda tutti i partecipanti'), findsOneWidget);
+
+      // Toccando lo switch si espande il selettore dei partecipanti
+      await tester.tap(find.text('Riguarda tutti i partecipanti'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Seleziona i partecipanti inclusi:'), findsOneWidget);
+      expect(find.byKey(const Key('participant-selector')), findsOneWidget);
+    });
+  });
 }
 
+final _fixedDate = DateTime.parse('2026-09-07T12:00:00Z');
 void _noop() {}
+
