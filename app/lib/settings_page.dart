@@ -464,30 +464,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 14),
+                const Text(
+                  'Condividi in 2 passaggi:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: ink,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: () async {
-                    final shareText = 'Ti invito su Lello! 🎉\n\n'
-                        '1. Installa l’app dall’APK allegato.\n'
-                        '2. Apri Lello e tocca "Registrati".\n'
-                        '3. Inserisci il codice di invito:\n'
-                        '$code\n\n'
-                        '(Codice monouso valido per una registrazione)';
-                    
-                    // Copia automaticamente negli appunti per sicurezza
-                    await Clipboard.setData(ClipboardData(text: shareText));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            '📋 Testo e codice copiati! Se la chat invia solo il file APK, incolla il messaggio subito sotto.',
-                          ),
-                          duration: Duration(seconds: 4),
-                        ),
-                      );
-                    }
-
                     try {
-                      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+                      if (!kIsWeb &&
+                          defaultTargetPlatform == TargetPlatform.android) {
                         const channel =
                             MethodChannel('it.partysync.partysync/apk_share');
                         final String? apkPath =
@@ -502,8 +492,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 name: 'Lello.apk',
                               ),
                             ],
-                            text: shareText,
-                            subject: 'Invito a Lello',
+                            subject: 'APK Lello',
                           );
                           return;
                         }
@@ -511,25 +500,41 @@ class _SettingsPageState extends State<SettingsPage> {
                     } catch (e) {
                       debugPrint('Errore condivisione APK: $e');
                     }
-                    await Share.share(shareText, subject: 'Invito a Lello');
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Condivisione APK disponibile da app Android.',
+                          ),
+                        ),
+                      );
+                    }
                   },
-                  icon: const Icon(Icons.share, size: 18),
-                  label: const Text('Invia file APK + Istruzioni'),
+                  icon: const Icon(Icons.file_download, size: 18),
+                  label: const Text('1. Invia file APK'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: lagoon,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                OutlinedButton.icon(
+                FilledButton.icon(
                   onPressed: () async {
                     final shareText = 'Ti invito su Lello! 🎉\n\n'
-                        '1. Installa l’app Lello.\n'
+                        '1. Installa l’app dall’APK appena inviato.\n'
                         '2. Apri l’app e tocca "Registrati".\n'
                         '3. Inserisci il codice di invito:\n'
                         '$code\n\n'
-                        '(Codice monouso valido per una registrazione)';
+                        '(Codice monouso)';
                     await Clipboard.setData(ClipboardData(text: shareText));
                     await Share.share(shareText, subject: 'Invito a Lello');
                   },
-                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                  label: const Text('Invia solo Messaggio con Codice'),
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: const Text('2. Invia Messaggio con Codice'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: sage,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
