@@ -467,21 +467,38 @@ class _SettingsPageState extends State<SettingsPage> {
                 FilledButton.icon(
                   onPressed: () async {
                     final shareText = 'Ti invito su Lello! 🎉\n\n'
-                        '1. Installa l’app dall’APK allegato a questo messaggio.\n'
+                        '1. Installa l’app dall’APK allegato.\n'
                         '2. Apri Lello e tocca "Registrati".\n'
-                        '3. Inserisci questo codice di invito:\n'
+                        '3. Inserisci il codice di invito:\n'
                         '$code\n\n'
-                        '(Codice monouso valido per una sola registrazione)';
+                        '(Codice monouso valido per una registrazione)';
+                    
+                    // Copia automaticamente negli appunti per sicurezza
+                    await Clipboard.setData(ClipboardData(text: shareText));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            '📋 Testo e codice copiati! Se la chat invia solo il file APK, incolla il messaggio subito sotto.',
+                          ),
+                          duration: Duration(seconds: 4),
+                        ),
+                      );
+                    }
+
                     try {
                       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-                        const channel = MethodChannel('it.partysync.partysync/apk_share');
-                        final String? apkPath = await channel.invokeMethod<String>('getApkPath');
+                        const channel =
+                            MethodChannel('it.partysync.partysync/apk_share');
+                        final String? apkPath =
+                            await channel.invokeMethod<String>('getApkPath');
                         if (apkPath != null && File(apkPath).existsSync()) {
                           await Share.shareXFiles(
                             [
                               XFile(
                                 apkPath,
-                                mimeType: 'application/vnd.android.package-archive',
+                                mimeType:
+                                    'application/vnd.android.package-archive',
                                 name: 'Lello.apk',
                               ),
                             ],
@@ -497,7 +514,22 @@ class _SettingsPageState extends State<SettingsPage> {
                     await Share.share(shareText, subject: 'Invito a Lello');
                   },
                   icon: const Icon(Icons.share, size: 18),
-                  label: const Text('Condividi Invito con APK'),
+                  label: const Text('Invia file APK + Istruzioni'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final shareText = 'Ti invito su Lello! 🎉\n\n'
+                        '1. Installa l’app Lello.\n'
+                        '2. Apri l’app e tocca "Registrati".\n'
+                        '3. Inserisci il codice di invito:\n'
+                        '$code\n\n'
+                        '(Codice monouso valido per una registrazione)';
+                    await Clipboard.setData(ClipboardData(text: shareText));
+                    await Share.share(shareText, subject: 'Invito a Lello');
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Invia solo Messaggio con Codice'),
                 ),
               ],
             ),
