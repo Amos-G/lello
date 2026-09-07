@@ -7,21 +7,28 @@ class AppUser {
   final String username;
   final String ruolo;
   final bool totpEnabled;
+  final bool canInviteUsers;
 
-  const AppUser(
-      {required this.id,
-      required this.username,
-      required this.ruolo,
-      required this.totpEnabled});
+  const AppUser({
+    required this.id,
+    required this.username,
+    required this.ruolo,
+    required this.totpEnabled,
+    this.canInviteUsers = false,
+  });
 
   bool get canManageLists => ruolo == 'guida' || ruolo == 'superadmin';
   bool get isAmosAdmin => username == 'amos' && ruolo == 'superadmin';
+  bool get canInviteNewUsers =>
+      isAmosAdmin || (ruolo == 'guida' && canInviteUsers);
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: idString(json['id']),
         username: json['username'] as String,
         ruolo: json['ruolo'] as String,
         totpEnabled: json['totp_enabled'] == true,
+        canInviteUsers:
+            json['can_invite_users'] == true || json['puo_invitare'] == true,
       );
 }
 
@@ -32,12 +39,13 @@ class PartyList {
   final String creatorUsername;
   final int participantCount;
 
-  const PartyList(
-      {required this.id,
-      required this.nome,
-      required this.creatorId,
-      required this.creatorUsername,
-      required this.participantCount});
+  const PartyList({
+    required this.id,
+    required this.nome,
+    required this.creatorId,
+    required this.creatorUsername,
+    required this.participantCount,
+  });
 
   factory PartyList.fromJson(Map<String, dynamic> json) => PartyList(
         id: idString(json['id']),
@@ -61,8 +69,11 @@ class Participant {
   final String username;
   final String ruolo;
 
-  const Participant(
-      {required this.id, required this.username, required this.ruolo});
+  const Participant({
+    required this.id,
+    required this.username,
+    required this.ruolo,
+  });
 
   factory Participant.fromJson(Map<String, dynamic> json) => Participant(
         id: idString(json['id'] ?? json['user_id']),
@@ -89,13 +100,16 @@ class EtichetteReport {
         labels: ((json['labels'] as List?) ?? const []).map((raw) {
           final label = Map<String, dynamic>.from(raw as Map);
           return AssigneeOption(
-              userId: idString(label['user_id']),
-              label: label['label'] as String);
+            userId: idString(label['user_id']),
+            label: label['label'] as String,
+          );
         }).toList(),
       );
 
-  List<AssigneeOption> get options =>
-      [AssigneeOption(userId: null, label: defaultLabel), ...labels];
+  List<AssigneeOption> get options => [
+        AssigneeOption(userId: null, label: defaultLabel),
+        ...labels,
+      ];
 }
 
 class Elemento {
@@ -105,12 +119,13 @@ class Elemento {
   final String chiPorta;
   final bool completato;
 
-  const Elemento(
-      {required this.id,
-      required this.nome,
-      required this.assigneeUserId,
-      required this.chiPorta,
-      required this.completato});
+  const Elemento({
+    required this.id,
+    required this.nome,
+    required this.assigneeUserId,
+    required this.chiPorta,
+    required this.completato,
+  });
 
   factory Elemento.fromJson(Map<String, dynamic> json) => Elemento(
         id: idString(json['id']),
@@ -130,8 +145,11 @@ class Scenario {
   final String titolo;
   final List<Elemento> elementi;
 
-  const Scenario(
-      {required this.id, required this.titolo, required this.elementi});
+  const Scenario({
+    required this.id,
+    required this.titolo,
+    required this.elementi,
+  });
 
   factory Scenario.fromJson(Map<String, dynamic> json) => Scenario(
         id: idString(json['id']),
@@ -151,14 +169,15 @@ class Spesa {
   final List<String> participantIds;
   final DateTime createdAt;
 
-  const Spesa(
-      {required this.id,
-      required this.userId,
-      required this.username,
-      required this.descrizione,
-      required this.importoCents,
-      required this.participantIds,
-      required this.createdAt});
+  const Spesa({
+    required this.id,
+    required this.userId,
+    required this.username,
+    required this.descrizione,
+    required this.importoCents,
+    required this.participantIds,
+    required this.createdAt,
+  });
 
   factory Spesa.fromJson(Map<String, dynamic> json) => Spesa(
         id: idString(json['id']),
@@ -180,12 +199,13 @@ class ExpenseParticipant {
   final int shareCents;
   final int balanceCents;
 
-  const ExpenseParticipant(
-      {required this.userId,
-      required this.username,
-      required this.paidCents,
-      required this.shareCents,
-      required this.balanceCents});
+  const ExpenseParticipant({
+    required this.userId,
+    required this.username,
+    required this.paidCents,
+    required this.shareCents,
+    required this.balanceCents,
+  });
 
   factory ExpenseParticipant.fromJson(Map<String, dynamic> json) =>
       ExpenseParticipant(
@@ -204,12 +224,13 @@ class Obligation {
   final String toUsername;
   final int amountCents;
 
-  const Obligation(
-      {required this.fromUserId,
-      required this.fromUsername,
-      required this.toUserId,
-      required this.toUsername,
-      required this.amountCents});
+  const Obligation({
+    required this.fromUserId,
+    required this.fromUsername,
+    required this.toUserId,
+    required this.toUsername,
+    required this.amountCents,
+  });
 
   factory Obligation.fromJson(Map<String, dynamic> json) => Obligation(
         fromUserId: idString(json['from_user_id']),
@@ -230,15 +251,16 @@ class Payment {
   final String? note;
   final DateTime createdAt;
 
-  const Payment(
-      {required this.id,
-      required this.fromUserId,
-      required this.fromUsername,
-      required this.toUserId,
-      required this.toUsername,
-      required this.amountCents,
-      required this.note,
-      required this.createdAt});
+  const Payment({
+    required this.id,
+    required this.fromUserId,
+    required this.fromUsername,
+    required this.toUserId,
+    required this.toUsername,
+    required this.amountCents,
+    required this.note,
+    required this.createdAt,
+  });
 
   factory Payment.fromJson(Map<String, dynamic> json) => Payment(
         id: idString(json['id']),
@@ -259,12 +281,13 @@ class SpeseReport {
   final List<Obligation> obligations;
   final int totalCents;
 
-  const SpeseReport(
-      {required this.spese,
-      required this.payments,
-      required this.participants,
-      required this.obligations,
-      required this.totalCents});
+  const SpeseReport({
+    required this.spese,
+    required this.payments,
+    required this.participants,
+    required this.obligations,
+    required this.totalCents,
+  });
 
   factory SpeseReport.fromJson(Map<String, dynamic> json) => SpeseReport(
         spese: ((json['spese'] as List?) ?? const [])
@@ -274,14 +297,17 @@ class SpeseReport {
             .map((e) => Payment.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
         participants: ((json['participants'] as List?) ?? const [])
-            .map((e) => ExpenseParticipant.fromJson(
-                Map<String, dynamic>.from(e as Map)))
+            .map(
+              (e) => ExpenseParticipant.fromJson(
+                  Map<String, dynamic>.from(e as Map)),
+            )
             .toList(),
         obligations: ((json['obligations'] as List?) ??
                 (json['settlements'] as List?) ??
                 const [])
             .map(
-                (e) => Obligation.fromJson(Map<String, dynamic>.from(e as Map)))
+              (e) => Obligation.fromJson(Map<String, dynamic>.from(e as Map)),
+            )
             .toList(),
         totalCents: intValue(json['total_cents'] ?? 0),
       );
@@ -292,23 +318,31 @@ class AdminUser {
   final String username;
   final String ruolo;
   final bool totpEnabled;
+  final bool canInviteUsers;
 
-  const AdminUser(
-      {required this.id,
-      required this.username,
-      required this.ruolo,
-      required this.totpEnabled});
+  const AdminUser({
+    required this.id,
+    required this.username,
+    required this.ruolo,
+    required this.totpEnabled,
+    this.canInviteUsers = false,
+  });
 
   factory AdminUser.fromJson(Map<String, dynamic> json) => AdminUser(
         id: idString(json['id']),
         username: json['username'] as String,
         ruolo: json['ruolo'] as String,
         totpEnabled: json['totp_enabled'] == true,
+        canInviteUsers:
+            json['can_invite_users'] == true || json['puo_invitare'] == true,
       );
 }
 
 Set<String> toggleParticipantSelection(
-    Set<String> selected, String participantId, bool enabled) {
+  Set<String> selected,
+  String participantId,
+  bool enabled,
+) {
   final next = {...selected};
   enabled ? next.add(participantId) : next.remove(participantId);
   return next;

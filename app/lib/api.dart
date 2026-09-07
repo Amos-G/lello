@@ -90,10 +90,30 @@ class Api {
   }
 
   Future<Map<String, dynamic>> login(String username, String password) async =>
-      Map<String, dynamic>.from(await _request('POST', '/api/auth/login', {
-        'username': username,
-        'password': password,
-      }));
+      Map<String, dynamic>.from(
+        await _request('POST', '/api/auth/login', {
+          'username': username,
+          'password': password,
+        }),
+      );
+
+  Future<Map<String, dynamic>> register({
+    required String inviteCode,
+    required String username,
+    required String password,
+  }) async =>
+      Map<String, dynamic>.from(
+        await _request('POST', '/api/auth/register', {
+          'invite_code': inviteCode.trim(),
+          'username': username.trim(),
+          'password': password,
+        }),
+      );
+
+  Future<Map<String, dynamic>> createRegistrationInvite() async =>
+      Map<String, dynamic>.from(
+        await _request('POST', '/api/inviti-registrazione', {}),
+      );
 
   Future<void> acceptToken(String value) async {
     token = value;
@@ -102,10 +122,11 @@ class Api {
 
   Future<void> verify2fa(String ticket, String code) async {
     final data = Map<String, dynamic>.from(
-        await _request('POST', '/api/auth/verify-2fa', {
-      'login_ticket': ticket,
-      'code': code,
-    }));
+      await _request('POST', '/api/auth/verify-2fa', {
+        'login_ticket': ticket,
+        'code': code,
+      }),
+    );
     await acceptToken(data['token'] as String);
   }
 
@@ -115,10 +136,12 @@ class Api {
   }
 
   Future<AppUser> me() async => AppUser.fromJson(
-      Map<String, dynamic>.from(await _request('GET', '/api/auth/me')));
+        Map<String, dynamic>.from(await _request('GET', '/api/auth/me')),
+      );
 
   Future<Map<String, dynamic>> setup2fa() async => Map<String, dynamic>.from(
-      await _request('POST', '/api/auth/2fa/setup', {}));
+        await _request('POST', '/api/auth/2fa/setup', {}),
+      );
   Future<void> enable2fa(String code) =>
       _request('POST', '/api/auth/2fa/enable', {'code': code});
   Future<void> disable2fa(String password) =>
@@ -149,20 +172,32 @@ class Api {
           .map((e) => Elemento.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
   Future<Elemento> createElemento(
-          String listId, String nome, String? assigneeUserId) async =>
-      Elemento.fromJson(Map<String, dynamic>.from(
+    String listId,
+    String nome,
+    String? assigneeUserId,
+  ) async =>
+      Elemento.fromJson(
+        Map<String, dynamic>.from(
           await _request('POST', '/api/liste/$listId/elementi', {
-        'nome': nome,
-        'chi_porta_utente_id': assigneeUserId,
-      })));
+            'nome': nome,
+            'chi_porta_utente_id': assigneeUserId,
+          }),
+        ),
+      );
   Future<void> patchElemento(
-          String listId, String id, Map<String, dynamic> patch) =>
+    String listId,
+    String id,
+    Map<String, dynamic> patch,
+  ) =>
       _request('PATCH', '/api/liste/$listId/elementi/$id', patch);
   Future<void> deleteElemento(String listId, String id) =>
       _request('DELETE', '/api/liste/$listId/elementi/$id');
   Future<EtichetteReport> etichette(String listId) async =>
-      EtichetteReport.fromJson(Map<String, dynamic>.from(
-          await _request('GET', '/api/liste/$listId/etichette')));
+      EtichetteReport.fromJson(
+        Map<String, dynamic>.from(
+          await _request('GET', '/api/liste/$listId/etichette'),
+        ),
+      );
 
   Future<List<Scenario>> scenari(String listId) async =>
       (await _request('GET', '/api/liste/$listId/scenari') as List)
@@ -175,13 +210,22 @@ class Api {
   Future<void> deleteScenario(String listId, String id) =>
       _request('DELETE', '/api/liste/$listId/scenari/$id');
   Future<void> attach(String listId, String scenarioId, String elementId) =>
-      _request('POST',
-          '/api/liste/$listId/scenari/$scenarioId/elementi/$elementId', {});
+      _request(
+        'POST',
+        '/api/liste/$listId/scenari/$scenarioId/elementi/$elementId',
+        {},
+      );
   Future<void> detach(String listId, String scenarioId, String elementId) =>
-      _request('DELETE',
-          '/api/liste/$listId/scenari/$scenarioId/elementi/$elementId');
-  Future<void> createAndAttach(String listId, String scenarioId, String name,
-      String? assigneeUserId) async {
+      _request(
+        'DELETE',
+        '/api/liste/$listId/scenari/$scenarioId/elementi/$elementId',
+      );
+  Future<void> createAndAttach(
+    String listId,
+    String scenarioId,
+    String name,
+    String? assigneeUserId,
+  ) async {
     final item = await createElemento(listId, name, assigneeUserId);
     try {
       await attach(listId, scenarioId, item.id);
@@ -193,11 +237,17 @@ class Api {
     }
   }
 
-  Future<SpeseReport> spese(String listId) async =>
-      SpeseReport.fromJson(Map<String, dynamic>.from(
-          await _request('GET', '/api/liste/$listId/spese')));
-  Future<void> addSpesa(String listId, String description, int amountCents,
-          List<String> participantIds) =>
+  Future<SpeseReport> spese(String listId) async => SpeseReport.fromJson(
+        Map<String, dynamic>.from(
+          await _request('GET', '/api/liste/$listId/spese'),
+        ),
+      );
+  Future<void> addSpesa(
+    String listId,
+    String description,
+    int amountCents,
+    List<String> participantIds,
+  ) =>
       _request('POST', '/api/liste/$listId/spese', {
         'descrizione': description,
         'importo_cents': amountCents,
@@ -206,7 +256,11 @@ class Api {
   Future<void> deleteSpesa(String listId, String id) =>
       _request('DELETE', '/api/liste/$listId/spese/$id');
   Future<void> addPayment(
-          String listId, String toUserId, int amountCents, String? note) =>
+    String listId,
+    String toUserId,
+    int amountCents,
+    String? note,
+  ) =>
       _request('POST', '/api/liste/$listId/pagamenti', {
         'a_utente_id': toUserId,
         'importo_cents': amountCents,
@@ -219,13 +273,28 @@ class Api {
       (await _request('GET', '/api/admin/utenti') as List)
           .map((e) => AdminUser.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
-  Future<void> createUser(String username, String password, String role) =>
-      _request('POST', '/api/admin/utenti',
-          {'username': username, 'password': password, 'ruolo': role});
-  Future<void> updateUser(String id, {String? role, String? password}) =>
+  Future<void> createUser(
+    String username,
+    String password,
+    String role, {
+    bool canInviteUsers = false,
+  }) =>
+      _request('POST', '/api/admin/utenti', {
+        'username': username,
+        'password': password,
+        'ruolo': role,
+        'can_invite_users': canInviteUsers,
+      });
+  Future<void> updateUser(
+    String id, {
+    String? role,
+    String? password,
+    bool? canInviteUsers,
+  }) =>
       _request('PATCH', '/api/admin/utenti/$id', {
         if (role != null) 'ruolo': role,
         if (password != null) 'password': password,
+        if (canInviteUsers != null) 'can_invite_users': canInviteUsers,
       });
 
   Future<WebSocketChannel> socket() async {

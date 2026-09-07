@@ -177,10 +177,7 @@ BoxDecoration surfaceDecoration({double radius = 20}) => BoxDecoration(
       borderRadius: BorderRadius.circular(radius),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x1460401F),
-          blurRadius: 28,
-          offset: Offset(0, 10),
-        ),
+            color: Color(0x1460401F), blurRadius: 28, offset: Offset(0, 10)),
       ],
     );
 
@@ -208,7 +205,10 @@ class SurfaceCard extends StatelessWidget {
         margin: margin,
         decoration: surfaceDecoration(),
         clipBehavior: Clip.antiAlias,
-        child: child,
+        child: Material(
+          type: MaterialType.transparency,
+          child: child,
+        ),
       );
 }
 
@@ -274,9 +274,9 @@ class EmptyState extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 6),
@@ -286,10 +286,7 @@ class EmptyState extends StatelessWidget {
                   style: const TextStyle(color: muted),
                 ),
               ],
-              if (action != null) ...[
-                const SizedBox(height: 20),
-                action!,
-              ],
+              if (action != null) ...[const SizedBox(height: 20), action!],
             ],
           ),
         ),
@@ -310,8 +307,12 @@ int? parseEuroCents(String value) {
       int.parse(decimals.isEmpty ? '0' : decimals);
 }
 
-Future<String?> textDialog(BuildContext context, String title, String label,
-    {String initial = ''}) async {
+Future<String?> textDialog(
+  BuildContext context,
+  String title,
+  String label, {
+  String initial = '',
+}) async {
   final controller = TextEditingController(text: initial);
   final result = await showDialog<String>(
     context: context,
@@ -342,7 +343,10 @@ Future<String?> textDialog(BuildContext context, String title, String label,
 }
 
 Future<bool> confirmDialog(
-        BuildContext context, String title, String body) async =>
+  BuildContext context,
+  String title,
+  String body,
+) async =>
     await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
