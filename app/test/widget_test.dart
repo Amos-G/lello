@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:partysync/api.dart';
 import 'package:partysync/app_theme.dart';
+import 'package:partysync/content_pages.dart';
 import 'package:partysync/expenses_page.dart';
 import 'package:partysync/main.dart';
 import 'package:partysync/models.dart';
@@ -663,9 +665,40 @@ void main() {
       expect(find.text('Seleziona i partecipanti inclusi:'), findsOneWidget);
       expect(find.byKey(const Key('participant-selector')), findsOneWidget);
     });
+
+    testWidgets('PrivateListPage composer presenta campo input, gap e pulsante con dimensioni coerenti', (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: const Scaffold(
+            body: PrivateListPage(
+              account: 'testuser',
+              items: [],
+              labels: EtichetteReport(defaultLabel: 'Da Assegnare', labels: []),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('Nuovo item privato'), findsOneWidget);
+      expect(find.byIcon(Icons.add), findsOneWidget);
+
+      final textFieldRect = tester.getRect(find.byType(TextField));
+      final buttonRect = tester.getRect(find.byType(IconButton));
+
+      // Verifica presenza del gap tra TextField e IconButton
+      expect(buttonRect.left, greaterThan(textFieldRect.right));
+      // Verifica altezza coerente (50px)
+      expect(buttonRect.height, equals(50));
+      expect(buttonRect.width, equals(50));
+    });
   });
 }
 
 final _fixedDate = DateTime.parse('2026-09-07T12:00:00Z');
 void _noop() {}
+
 

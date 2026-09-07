@@ -342,11 +342,20 @@ class _ExpensesPageState extends State<ExpensesPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: FilledButton.tonalIcon(
                     key: const Key('add-settlement'),
                     onPressed: busy
                         ? null
                         : () => paymentDialog(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: lagoonSoft,
+                      foregroundColor: lagoon,
+                      minimumSize: const Size(48, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     icon: const Icon(Icons.swap_horiz),
                     label: const Text('Registra saldo'),
                   ),

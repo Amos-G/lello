@@ -682,6 +682,7 @@ class _PrivateListPageState extends State<PrivateListPage> {
                   onSubmitted: (_) => addLocal(),
                 ),
               ),
+              const SizedBox(width: 8),
               IconButton.filled(
                 style: addIconButtonStyle(),
                 onPressed: addLocal,

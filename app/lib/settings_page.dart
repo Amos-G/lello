@@ -138,9 +138,20 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         if (widget.user.canManageLists)
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child: FilledButton.tonalIcon(
                               key: const Key('create-list'),
                               onPressed: busy ? null : createList,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: sunsetSoft,
+                                foregroundColor: sunset,
+                                minimumSize: const Size(48, 50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                               icon: const Icon(Icons.add),
                               label: const Text('Crea lista'),
                             ),
@@ -149,8 +160,19 @@ class _SettingsPageState extends State<SettingsPage> {
                           const SizedBox(width: 8),
                         if (canDeleteList)
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child: FilledButton.tonalIcon(
                               onPressed: busy ? null : deleteList,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFFBEBE8),
+                                foregroundColor: danger,
+                                minimumSize: const Size(48, 50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                               icon: const Icon(Icons.delete_outline),
                               label: const Text('Elimina'),
                             ),
@@ -228,7 +250,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ],
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: OutlinedButton.icon(
               onPressed: busy
                   ? null
@@ -236,6 +258,16 @@ class _SettingsPageState extends State<SettingsPage> {
                       await widget.api.logout();
                       widget.onLogout();
                     },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                side: const BorderSide(color: line, width: 1.5),
+                foregroundColor: ink,
+                backgroundColor: Colors.white.withValues(alpha: 0.7),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
               icon: const Icon(Icons.logout),
               label: const Text('Esci'),
             ),

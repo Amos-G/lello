@@ -106,6 +106,15 @@ ThemeData buildAppTheme() {
         textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
       ),
     ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: ink,
+        minimumSize: const Size(48, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        side: const BorderSide(color: line, width: 1.5),
+        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: sunset,
       foregroundColor: Colors.white,
@@ -186,7 +195,8 @@ ButtonStyle addIconButtonStyle() => IconButton.styleFrom(
       foregroundColor: Colors.white,
       disabledBackgroundColor: sunset.withValues(alpha: 0.55),
       disabledForegroundColor: Colors.white70,
-      fixedSize: const Size.square(54),
+      fixedSize: const Size.square(50),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
     );
 
 class SurfaceCard extends StatelessWidget {
