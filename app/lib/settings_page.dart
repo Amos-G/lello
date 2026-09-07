@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -463,16 +465,39 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 14),
                 FilledButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     final shareText = 'Ti invito su Lello! 🎉\n\n'
-                        '1. Scarica l’app per Android o accedi dal browser:\n'
-                        'https://partysync.amosgranata.it\n\n'
-                        '2. Registrati con il tuo codice invito esclusivo:\n'
-                        '$code';
-                    Share.share(shareText);
+                        '1. Installa l’app dall’APK allegato a questo messaggio.\n'
+                        '2. Apri Lello e tocca "Registrati".\n'
+                        '3. Inserisci questo codice di invito:\n'
+                        '$code\n\n'
+                        '(Codice monouso valido per una sola registrazione)';
+                    try {
+                      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+                        const channel = MethodChannel('it.partysync.partysync/apk_share');
+                        final String? apkPath = await channel.invokeMethod<String>('getApkPath');
+                        if (apkPath != null && File(apkPath).existsSync()) {
+                          await Share.shareXFiles(
+                            [
+                              XFile(
+                                apkPath,
+                                mimeType: 'application/vnd.android.package-archive',
+                                name: 'Lello.apk',
+                              ),
+                            ],
+                            text: shareText,
+                            subject: 'Invito a Lello',
+                          );
+                          return;
+                        }
+                      }
+                    } catch (e) {
+                      debugPrint('Errore condivisione APK: $e');
+                    }
+                    await Share.share(shareText, subject: 'Invito a Lello');
                   },
                   icon: const Icon(Icons.share, size: 18),
-                  label: const Text('Condividi con APK / Link'),
+                  label: const Text('Condividi Invito con APK'),
                 ),
               ],
             ),
