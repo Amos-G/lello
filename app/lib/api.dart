@@ -6,7 +6,10 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'models.dart';
 
-const backendUrl = 'https://partysync.amosgranata.it';
+const backendUrl = String.fromEnvironment(
+  'BACKEND_URL',
+  defaultValue: 'https://partysync.amosgranata.it',
+);
 
 class ApiException implements Exception {
   final String message;
