@@ -307,10 +307,12 @@ class Api {
     final uri = base.replace(
       scheme: base.scheme == 'https' ? 'wss' : 'ws',
       path: '/ws',
-      queryParameters: {'token': token!},
     );
     final channel = WebSocketChannel.connect(uri);
     await channel.ready.timeout(requestTimeout);
+    if (token != null) {
+      channel.sink.add(jsonEncode({'type': 'auth', 'token': token!}));
+    }
     return channel;
   }
 }
